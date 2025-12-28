@@ -1,0 +1,88 @@
+#!/bin/bash
+# Quality checks for pi.el - run before commits
+#
+# Usage:
+#   ./scripts/check.sh              # Unit tests only (fast)
+#   ./scripts/check.sh --integration # Include integration tests (slow, needs pi)
+#   ./scripts/check.sh -i            # Short form
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+# Parse arguments
+RUN_INTEGRATION=false
+for arg in "$@"; do
+    case $arg in
+        --integration|-i)
+            RUN_INTEGRATION=true
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--integration|-i]"
+            echo ""
+            echo "Options:"
+            echo "  --integration, -i  Run integration tests (requires pi installed)"
+            echo "  --help, -h         Show this help"
+            exit 0
+            ;;
+    esac
+done
+
+echo "=== Byte-compiling ==="
+emacs --batch \
+    -L . \
+    --eval "(setq byte-compile-error-on-warn t)" \
+    -f batch-byte-compile \
+    pi-core.el pi.el
+
+echo ""
+echo "=== Checking docstrings ==="
+# Capture warnings from checkdoc and fail if any are found
+CHECKDOC_OUTPUT=$(emacs --batch \
+    -L . \
+    --eval "(require 'checkdoc)" \
+    --eval "(setq sentence-end-double-space nil)" \
+    --eval "(checkdoc-file \"pi-core.el\")" \
+    --eval "(checkdoc-file \"pi.el\")" 2>&1)
+
+if echo "$CHECKDOC_OUTPUT" | grep -q "^Warning"; then
+    echo "$CHECKDOC_OUTPUT" | grep "^Warning"
+    echo "Checkdoc failed!"
+    exit 1
+fi
+echo "Checkdoc: Done."
+
+echo ""
+echo "=== Running unit tests ==="
+emacs --batch \
+    -L . \
+    -L test \
+    -l pi \
+    -l pi-core-test \
+    -l pi-test \
+    -f ert-run-tests-batch-and-exit
+
+if [ "$RUN_INTEGRATION" = true ]; then
+    echo ""
+    echo "=== Running integration tests ==="
+    
+    # Check if pi is available
+    if ! command -v pi &> /dev/null; then
+        echo "Error: pi executable not found in PATH"
+        exit 1
+    fi
+    
+    PI_RUN_INTEGRATION=1 emacs --batch \
+        -L . \
+        -L test \
+        -l pi \
+        -l pi-integration-test \
+        -f ert-run-tests-batch-and-exit
+fi
+
+echo ""
+echo "=== All checks passed ==="
+
+# Clean up .elc files (we don't commit them)
+rm -f *.elc

@@ -1,0 +1,154 @@
+#+title: pi.el
+#+author: Daniel Nouri
+
+#+html: <a href="https://melpa.org/#/pi"><img alt="MELPA" src="https://melpa.org/packages/pi-badge.svg"/></a>
+
+An Emacs frontend for the [[https://shittycodingagent.ai/][pi coding agent]].
+
+[[https://danielnouri.org/media/pi-el-demo.gif]]
+
+* Features
+
+- Separate windows for chat history and prompt composition
+- Markdown rendering via pandoc with syntax highlighting
+- Auto-scroll that preserves your position when reading earlier content
+- Collapsible tool output with preview
+- Input history with search
+- Magit-style transient menu for all commands
+- Full support for pi features: models, thinking levels, sessions, custom commands
+
+* Requirements
+
+- Emacs 28.1 or later
+- [[https://shittycodingagent.ai/][pi coding agent]] installed and in PATH
+- [[https://pandoc.org/][pandoc]] for markdown rendering
+
+** Installing pi coding agent
+
+#+begin_src bash
+# Install with npm
+npm install -g @mariozechner/pi-coding-agent
+
+# Or with mise
+mise use -g npm:@mariozechner/pi-coding-agent
+#+end_src
+
+** Installing pandoc
+
+#+begin_src bash
+# Debian/Ubuntu
+apt install pandoc
+
+# macOS
+brew install pandoc
+#+end_src
+
+* Installation
+
+** MELPA
+
+Once available on [[https://melpa.org/#/pi][MELPA]], you can install directly:
+
+#+begin_src
+M-x package-install RET pi RET
+#+end_src
+
+Or with =use-package=:
+
+#+begin_src emacs-lisp
+(use-package pi
+  :ensure t)
+#+end_src
+
+If you don't have MELPA configured, add this to your init file:
+
+#+begin_src emacs-lisp
+(require 'package)
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+(package-initialize)
+#+end_src
+
+** Manual installation
+
+Clone the repository and add to your load path:
+
+#+begin_src bash
+git clone https://github.com/dnouri/pi.el ~/.emacs.d/site-lisp/pi.el
+#+end_src
+
+#+begin_src emacs-lisp
+(add-to-list 'load-path "~/.emacs.d/site-lisp/pi.el")
+(require 'pi)
+#+end_src
+
+Or with =use-package=:
+
+#+begin_src emacs-lisp
+(use-package pi
+  :load-path "~/.emacs.d/site-lisp/pi.el")
+#+end_src
+
+* Usage
+
+Start a session with =M-x pi=. This opens two windows:
+- *Chat buffer* (top): Shows conversation history with rendered markdown
+- *Input buffer* (bottom): Where you compose prompts
+
+Type your prompt and press =C-c C-c= to send. Press =C-c C-p= for the full command menu.
+
+For multiple sessions in the same directory, use =C-u M-x pi= to create a named session.
+
+* Key Bindings
+
+| Key           | Context | Description        |
+|---------------+---------+--------------------|
+| =C-c C-c=     | input   | Send prompt        |
+| =C-c C-k=     | input   | Abort streaming    |
+| =C-c C-p=     | both    | Open menu          |
+| =C-c C-r=     | input   | Resume session     |
+| =M-p= / =M-n= | input   | History navigation |
+| =C-r=         | input   | Search history     |
+| =n= / =p=     | chat    | Navigate messages  |
+| =TAB=         | chat    | Toggle tool output |
+
+Press =C-c C-p= to access the full menu with model selection, thinking level,
+session management (new, resume, branch, export), statistics, and custom commands.
+
+* Configuration
+
+Example configuration with =use-package=:
+
+#+begin_src emacs-lisp
+(use-package pi
+  :ensure t
+  :custom
+  (pi-input-window-height 10)      ; Height of input window
+  (pi-tool-preview-lines 10)       ; Lines shown before collapsing tool output
+  (pi-bash-preview-lines 5))       ; Lines shown for bash output
+#+end_src
+
+Optional: Enable [[https://github.com/minad/org-modern][org-modern]] for prettier rendering:
+
+#+begin_src emacs-lisp
+(use-package org-modern
+  :ensure t
+  :hook (pi-chat-mode . org-modern-mode))
+#+end_src
+
+* Custom Commands
+
+pi.el supports custom slash commands from =~/.pi/agent/commands/= and
+=.pi/commands/=. These appear in the transient menu (=C-c C-p=) and can be
+invoked with =/command= in the input buffer with tab completion.
+
+See the [[https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent#custom-slash-commands][pi documentation]] for creating custom commands.
+
+* Links
+
+- [[https://danielnouri.org/notes/2025/12/30/an-emacs-mode-for-a-shitty-coding-agent/][Blog post]] — Background and motivation
+- [[https://shittycodingagent.ai/][shittycodingagent.ai]] — pi coding agent home page
+- [[https://github.com/badlogic/pi-mono][pi-mono]] — Source code repository
+
+* License
+
+GPL-3.0-or-later. See [[file:LICENSE][LICENSE]].

@@ -1,0 +1,12 @@
+# Byte-compiled files
+*.elc
+
+# Auto-save files
+*~
+\#*\#
+
+# Backup files
+*.orig
+
+# Package archives
+*.tar

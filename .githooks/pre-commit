@@ -1,0 +1,5 @@
+#!/bin/bash
+# Git pre-commit hook for pi.el
+# Runs byte-compilation and tests before allowing commits
+
+exec ./scripts/check.sh
