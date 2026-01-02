@@ -99,5 +99,21 @@
             (should (pi-gui-test-chat-contains "XYZ123")))
         (pi-gui-test-delete-temp-file test-file)))))
 
+;;;; Window Protection Tests
+
+(ert-deftest pi-gui-test-window-protection ()
+  "Test that pi windows are protected from display-buffer."
+  (pi-gui-test-with-session
+    (let ((chat-win (pi-gui-test-chat-window))
+          (input-win (pi-gui-test-input-window)))
+      ;; Both windows should be dedicated
+      (should (window-dedicated-p chat-win))
+      (should (window-dedicated-p input-win))
+      ;; Input window should be excluded from other-window
+      (should (window-parameter input-win 'no-other-window))
+      (should (window-parameter input-win 'no-delete-other-windows))
+      ;; Chat window should remain navigable
+      (should-not (window-parameter chat-win 'no-other-window)))))
+
 (provide 'pi-gui-tests)
 ;;; pi-gui-tests.el ends here

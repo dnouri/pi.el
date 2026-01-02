@@ -115,6 +115,23 @@ Bash output is typically more verbose, so fewer lines are shown."
   :type 'natnum
   :group 'pi)
 
+(defcustom pi-protect-windows t
+  "Whether to protect pi windows from being reused by other commands.
+When non-nil, pi windows are marked as dedicated and the input window
+is excluded from `other-window' navigation.  This prevents commands
+like `magit-status' from hijacking the pi windows.
+
+The protection follows the pattern used by Emacs packages like
+`speedbar' and `erc-status-sidebar':
+- Both windows are marked as dedicated (won't display other buffers)
+- Input window has `no-other-window' (skipped by `other-window')
+- Input window has `no-delete-other-windows' (survives `delete-other-windows')
+
+The chat window remains navigable via `other-window' since users
+often want to interact with it directly."
+  :type 'boolean
+  :group 'pi)
+
 ;;;; Faces
 
 (defface pi-separator
@@ -504,13 +521,26 @@ Works from either chat or input buffer."
 
 (defun pi--display-buffers (chat-buf input-buf)
   "Display CHAT-BUF and INPUT-BUF in current window, split vertically.
-Does not affect other windows in the frame."
+Does not affect other windows in the frame.
+
+When `pi-protect-windows' is non-nil, windows are protected from
+being reused by other commands (like `magit-status').  See that
+variable's documentation for details."
   ;; Use current window for chat, split for input
   (switch-to-buffer chat-buf)
   (with-current-buffer chat-buf
     (goto-char (point-max)))
-  (let ((input-win (split-window nil (- pi-input-window-height) 'below)))
+  (let ((chat-win (selected-window))
+        (input-win (split-window nil (- pi-input-window-height) 'below)))
     (set-window-buffer input-win input-buf)
+    ;; Protect windows from being hijacked by other commands
+    (when pi-protect-windows
+      ;; Chat window: dedicated but navigable via other-window
+      (set-window-dedicated-p chat-win t)
+      ;; Input window: full protection (dedicated + excluded from navigation)
+      (set-window-dedicated-p input-win t)
+      (set-window-parameter input-win 'no-other-window t)
+      (set-window-parameter input-win 'no-delete-other-windows t))
     (select-window input-win)))
 
 ;;;; Response Display
