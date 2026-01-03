@@ -1798,3 +1798,105 @@ Content")))
                  (cmd (car commands)))
             (should (string-match-p "First line" (plist-get cmd :description)))))
       (delete-directory temp-dir t))))
+
+;;; Window Protection
+
+(ert-deftest pi-test-input-window-dedicated ()
+  "Input window is marked as dedicated."
+  (let ((chat-buf (generate-new-buffer "*pi-test-chat*"))
+        (input-buf (generate-new-buffer "*pi-test-input*")))
+    (unwind-protect
+        (progn
+          (delete-other-windows)
+          (switch-to-buffer chat-buf)
+          (pi--display-buffers chat-buf input-buf)
+          (let ((input-win (get-buffer-window input-buf)))
+            (should input-win)
+            (should (window-dedicated-p input-win))))
+      (ignore-errors (delete-other-windows))
+      (kill-buffer chat-buf)
+      (kill-buffer input-buf))))
+
+(ert-deftest pi-test-input-window-no-other-window ()
+  "Input window has no-other-window parameter set."
+  (let ((chat-buf (generate-new-buffer "*pi-test-chat*"))
+        (input-buf (generate-new-buffer "*pi-test-input*")))
+    (unwind-protect
+        (progn
+          (delete-other-windows)
+          (switch-to-buffer chat-buf)
+          (pi--display-buffers chat-buf input-buf)
+          (let ((input-win (get-buffer-window input-buf)))
+            (should input-win)
+            (should (window-parameter input-win 'no-other-window))))
+      (ignore-errors (delete-other-windows))
+      (kill-buffer chat-buf)
+      (kill-buffer input-buf))))
+
+(ert-deftest pi-test-input-window-no-delete-other-windows ()
+  "Input window has no-delete-other-windows parameter set."
+  (let ((chat-buf (generate-new-buffer "*pi-test-chat*"))
+        (input-buf (generate-new-buffer "*pi-test-input*")))
+    (unwind-protect
+        (progn
+          (delete-other-windows)
+          (switch-to-buffer chat-buf)
+          (pi--display-buffers chat-buf input-buf)
+          (let ((input-win (get-buffer-window input-buf)))
+            (should input-win)
+            (should (window-parameter input-win 'no-delete-other-windows))))
+      (ignore-errors (delete-other-windows))
+      (kill-buffer chat-buf)
+      (kill-buffer input-buf))))
+
+(ert-deftest pi-test-chat-window-dedicated ()
+  "Chat window is marked as dedicated."
+  (let ((chat-buf (generate-new-buffer "*pi-test-chat*"))
+        (input-buf (generate-new-buffer "*pi-test-input*")))
+    (unwind-protect
+        (progn
+          (delete-other-windows)
+          (switch-to-buffer chat-buf)
+          (pi--display-buffers chat-buf input-buf)
+          (let ((chat-win (get-buffer-window chat-buf)))
+            (should chat-win)
+            (should (window-dedicated-p chat-win))))
+      (ignore-errors (delete-other-windows))
+      (kill-buffer chat-buf)
+      (kill-buffer input-buf))))
+
+(ert-deftest pi-test-chat-window-allows-other-window ()
+  "Chat window allows other-window navigation (unlike input)."
+  (let ((chat-buf (generate-new-buffer "*pi-test-chat*"))
+        (input-buf (generate-new-buffer "*pi-test-input*")))
+    (unwind-protect
+        (progn
+          (delete-other-windows)
+          (switch-to-buffer chat-buf)
+          (pi--display-buffers chat-buf input-buf)
+          (let ((chat-win (get-buffer-window chat-buf)))
+            (should chat-win)
+            ;; Chat window should NOT have no-other-window
+            ;; (we want users to be able to navigate to it)
+            (should-not (window-parameter chat-win 'no-other-window))))
+      (ignore-errors (delete-other-windows))
+      (kill-buffer chat-buf)
+      (kill-buffer input-buf))))
+
+(ert-deftest pi-test-window-protection-customizable ()
+  "Window protection can be disabled via customization."
+  (let ((pi-protect-windows nil)
+        (chat-buf (generate-new-buffer "*pi-test-chat*"))
+        (input-buf (generate-new-buffer "*pi-test-input*")))
+    (unwind-protect
+        (progn
+          (delete-other-windows)
+          (switch-to-buffer chat-buf)
+          (pi--display-buffers chat-buf input-buf)
+          (let ((input-win (get-buffer-window input-buf)))
+            (should input-win)
+            ;; When disabled, windows should not be dedicated
+            (should-not (window-dedicated-p input-win))))
+      (ignore-errors (delete-other-windows))
+      (kill-buffer chat-buf)
+      (kill-buffer input-buf))))
