@@ -1,4 +1,4 @@
-;;; pi-gui-test-utils.el --- Utilities for pi.el GUI tests -*- lexical-binding: t; -*-
+;;; pi-coding-agent-gui-test-utils.el --- Utilities for pi-coding-agent GUI tests -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 ;;
@@ -280,4 +280,4 @@ Inserts dummy content directly (no LLM calls) for speed."
   (ignore-errors (delete-file path)))
 
 (provide 'pi-coding-agent-gui-test-utils)
-;;; pi-gui-test-utils.el ends here
+;;; pi-coding-agent-gui-test-utils.el ends here

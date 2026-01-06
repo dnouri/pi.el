@@ -1,4 +1,4 @@
-;;; pi-core-test.el --- Tests for pi-core.el -*- lexical-binding: t; -*-
+;;; pi-coding-agent-core-test.el --- Tests for pi-coding-agent-core -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 
@@ -526,4 +526,4 @@
     (should (eq (plist-get pi--state :is-retrying) nil))))
 
 (provide 'pi-coding-agent-core-test)
-;;; pi-core-test.el ends here
+;;; pi-coding-agent-core-test.el ends here

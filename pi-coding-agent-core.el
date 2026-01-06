@@ -1,4 +1,4 @@
-;;; pi-core.el --- Core functionality for pi.el -*- lexical-binding: t; -*-
+;;; pi-coding-agent-core.el --- Core functionality for pi-coding-agent -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Daniel Nouri
 
@@ -341,4 +341,4 @@ Returns plist with :status key for setting `pi--status'."
             :queued-message-count (plist-get data :queuedMessageCount)))))
 
 (provide 'pi-coding-agent-core)
-;;; pi-core.el ends here
+;;; pi-coding-agent-core.el ends here

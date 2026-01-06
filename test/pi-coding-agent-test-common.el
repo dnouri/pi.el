@@ -1,4 +1,4 @@
-;;; pi-test-common.el --- Shared test utilities and configuration -*- lexical-binding: t; -*-
+;;; pi-coding-agent-test-common.el --- Shared test utilities and configuration -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 
@@ -25,4 +25,4 @@
   "Timeout in seconds for GUI tests (includes real LLM responses).")
 
 (provide 'pi-coding-agent-test-common)
-;;; pi-test-common.el ends here
+;;; pi-coding-agent-test-common.el ends here

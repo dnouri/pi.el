@@ -1,4 +1,4 @@
-;;; pi.el --- Emacs frontend for pi coding agent -*- lexical-binding: t; -*-
+;;; pi-coding-agent.el --- Emacs frontend for pi coding agent -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025 Daniel Nouri
 
@@ -2355,4 +2355,4 @@ If already in a pi buffer and no SESSION specified, redisplays current session."
     (pi--display-buffers chat-buf input-buf)))
 
 (provide 'pi-coding-agent)
-;;; pi.el ends here
+;;; pi-coding-agent.el ends here

@@ -1,4 +1,4 @@
-;;; pi-test.el --- Tests for pi.el -*- lexical-binding: t; -*-
+;;; pi-coding-agent-test.el --- Tests for pi-coding-agent -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 
@@ -1309,7 +1309,7 @@ which is just a success message."
     (should (eq (key-binding (kbd "TAB")) 'pi-toggle-tool-section))))
 
 (provide 'pi-coding-agent-test)
-;;; pi-test.el ends here
+;;; pi-coding-agent-test.el ends here
 
 (ert-deftest pi-test-tool-toggle-expands-content ()
   "Toggle button expands collapsed tool output."

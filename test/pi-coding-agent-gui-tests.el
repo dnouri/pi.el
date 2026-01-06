@@ -1,4 +1,4 @@
-;;; pi-gui-tests.el --- GUI integration tests for pi.el -*- lexical-binding: t; -*-
+;;; pi-coding-agent-gui-tests.el --- GUI integration tests for pi-coding-agent -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 ;;
@@ -126,4 +126,4 @@ Regression test: overlay with rear-advance was extending to subsequent content."
         (pi-gui-test-delete-temp-file test-file)))))
 
 (provide 'pi-coding-agent-gui-tests)
-;;; pi-gui-tests.el ends here
+;;; pi-coding-agent-gui-tests.el ends here

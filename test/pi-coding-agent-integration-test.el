@@ -1,4 +1,4 @@
-;;; pi-integration-test.el --- Integration tests for pi.el -*- lexical-binding: t; -*-
+;;; pi-coding-agent-integration-test.el --- Integration tests for pi-coding-agent -*- lexical-binding: t; -*-
 
 ;;; Commentary:
 
@@ -223,4 +223,4 @@ Sets up event dispatching through pi--event-handlers list."
         (should (eq (plist-get data :isStreaming) :false))))))
 
 (provide 'pi-coding-agent-integration-test)
-;;; pi-integration-test.el ends here
+;;; pi-coding-agent-integration-test.el ends here
