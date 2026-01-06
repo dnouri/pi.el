@@ -874,15 +874,15 @@ then proper highlighting once block is closed."
     (should (string-match-p "Error:" (buffer-string)))
     (should (string-match-p "unknown" (buffer-string)))))
 
-(ert-deftest pi-coding-agent-test-display-hook-error ()
-  "hook_error event shows hook name and error."
+(ert-deftest pi-coding-agent-test-display-extension-error ()
+  "extension_error event shows extension name and error."
   (with-temp-buffer
     (pi-coding-agent-chat-mode)
-    (pi-coding-agent--display-hook-error '(:type "hook_error"
-                              :hookPath "/home/user/.pi/hooks/before_send.ts"
+    (pi-coding-agent--display-extension-error '(:type "extension_error"
+                              :extensionPath "/home/user/.pi/extensions/before_send.ts"
                               :event "tool_call"
                               :error "TypeError: Cannot read property"))
-    (should (string-match-p "Hook error" (buffer-string)))
+    (should (string-match-p "Extension error" (buffer-string)))
     (should (string-match-p "before_send.ts" (buffer-string)))
     (should (string-match-p "tool_call" (buffer-string)))
     (should (string-match-p "TypeError" (buffer-string)))))
@@ -911,17 +911,17 @@ then proper highlighting once block is closed."
                                   :attempt 2))
       (should (string-match-p "succeeded" (buffer-string))))))
 
-(ert-deftest pi-coding-agent-test-handle-display-event-hook-error ()
-  "pi-coding-agent--handle-display-event handles hook_error."
+(ert-deftest pi-coding-agent-test-handle-display-event-extension-error ()
+  "pi-coding-agent--handle-display-event handles extension_error."
   (with-temp-buffer
     (pi-coding-agent-chat-mode)
     (let ((pi-coding-agent--status 'streaming)
           (pi-coding-agent--state (list :last-error nil)))
-      (pi-coding-agent--handle-display-event '(:type "hook_error"
-                                  :hookPath "/path/hook.ts"
+      (pi-coding-agent--handle-display-event '(:type "extension_error"
+                                  :extensionPath "/path/extension.ts"
                                   :event "before_send"
-                                  :error "Hook failed"))
-      (should (string-match-p "Hook error" (buffer-string))))))
+                                  :error "Extension failed"))
+      (should (string-match-p "Extension error" (buffer-string))))))
 
 (ert-deftest pi-coding-agent-test-handle-display-event-message-error ()
   "pi-coding-agent--handle-display-event handles message_update with error type."

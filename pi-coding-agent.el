@@ -764,17 +764,17 @@ Shows success or final failure with raw error."
                             'face 'pi-coding-agent-error-notice)
            "\n")))
 
-(defun pi-coding-agent--display-hook-error (event)
-  "Display hook error from hook_error EVENT."
-  (let* ((hook-path (plist-get event :hookPath))
-         (hook-event (plist-get event :event))
+(defun pi-coding-agent--display-extension-error (event)
+  "Display extension error from extension_error EVENT."
+  (let* ((extension-path (plist-get event :extensionPath))
+         (extension-event (plist-get event :event))
          (error-msg (plist-get event :error))
-         (hook-name (if hook-path (file-name-nondirectory hook-path) "unknown")))
+         (extension-name (if extension-path (file-name-nondirectory extension-path) "unknown")))
     (pi-coding-agent--append-to-chat
      (concat "\n"
-             (propertize (format "[Hook error in %s (%s): %s]"
-                                 hook-name
-                                 (or hook-event "unknown")
+             (propertize (format "[Extension error in %s (%s): %s]"
+                                 extension-name
+                                 (or extension-event "unknown")
                                  (or error-msg "unknown error"))
                          'face 'pi-coding-agent-error-notice)
              "\n"))))
@@ -943,8 +943,8 @@ Updates buffer-local state and renders display updates."
      (pi-coding-agent--display-retry-start event))
     ("auto_retry_end"
      (pi-coding-agent--display-retry-end event))
-    ("hook_error"
-     (pi-coding-agent--display-hook-error event))))
+    ("extension_error"
+     (pi-coding-agent--display-extension-error event))))
 
 ;;;; Sending Prompts
 
@@ -1671,7 +1671,7 @@ Replaces $@ with all arguments joined by spaces."
   "Start a new pi session (reset)."
   (interactive)
   (when-let ((proc (pi-coding-agent--get-process)))
-    (pi-coding-agent--rpc-async proc '(:type "reset")
+    (pi-coding-agent--rpc-async proc '(:type "new_session")
                    (lambda (response)
                      (let* ((data (plist-get response :data))
                             (cancelled (plist-get data :cancelled)))
