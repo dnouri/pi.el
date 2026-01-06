@@ -1400,8 +1400,8 @@ which is just a success message."
 
 (ert-deftest pi-test-session-dir-name ()
   "Session directory name derived from project path."
-  (should (equal (pi--session-dir-name "/home/daniel/co/pi.el")
-                 "--home-daniel-co-pi.el--"))
+  (should (equal (pi--session-dir-name "/home/daniel/co/pi-coding-agent")
+                 "--home-daniel-co-pi-coding-agent--"))
   (should (equal (pi--session-dir-name "/tmp/test")
                  "--tmp-test--")))
 
