@@ -27,7 +27,7 @@
 
 ;;; Commentary:
 
-;; Core functionality for pi.el: JSON parsing, line buffering, RPC communication.
+;; Core functionality for pi-coding-agent: JSON parsing, line buffering, RPC communication.
 ;; This module provides the low-level plumbing for communicating with the
 ;; pi coding agent via JSON-over-stdio.
 

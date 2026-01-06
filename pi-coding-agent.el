@@ -1326,7 +1326,7 @@ Displays warnings for missing dependencies."
 ;;;; Startup Header
 
 (defconst pi-version "0.1.0"
-  "Version of pi.el.")
+  "Version of pi-coding-agent.")
 
 (defun pi--get-pi-version ()
   "Get pi CLI version by running `pi --version'."
