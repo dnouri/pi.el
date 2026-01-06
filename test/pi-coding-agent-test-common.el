@@ -9,19 +9,19 @@
 
 ;;; Timeout Configuration
 
-(defvar pi-test-short-wait 0.5
+(defvar pi-coding-agent-test-short-wait 0.5
   "Short wait in seconds for async operations to complete.")
 
-(defvar pi-test-poll-interval 0.1
+(defvar pi-coding-agent-test-poll-interval 0.1
   "Polling interval in seconds for waiting loops.")
 
-(defvar pi-test-rpc-timeout 10
+(defvar pi-coding-agent-test-rpc-timeout 10
   "Timeout in seconds for RPC calls in tests.")
 
-(defvar pi-test-integration-timeout 180
+(defvar pi-coding-agent-test-integration-timeout 180
   "Timeout in seconds for integration tests.")
 
-(defvar pi-test-gui-timeout 90
+(defvar pi-coding-agent-test-gui-timeout 90
   "Timeout in seconds for GUI tests (includes real LLM responses).")
 
 (provide 'pi-coding-agent-test-common)

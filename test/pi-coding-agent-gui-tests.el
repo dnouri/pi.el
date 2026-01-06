@@ -19,65 +19,65 @@
 
 ;;;; Session Tests
 
-(ert-deftest pi-gui-test-session-starts ()
+(ert-deftest pi-coding-agent-gui-test-session-starts ()
   "Test that pi session starts with proper layout."
-  (pi-gui-test-with-session
-    (should (pi-gui-test-session-active-p))
-    (should (pi-gui-test-chat-window))
-    (should (pi-gui-test-input-window))
-    (should (pi-gui-test-verify-layout))))
+  (pi-coding-agent-gui-test-with-session
+    (should (pi-coding-agent-gui-test-session-active-p))
+    (should (pi-coding-agent-gui-test-chat-window))
+    (should (pi-coding-agent-gui-test-input-window))
+    (should (pi-coding-agent-gui-test-verify-layout))))
 
 ;;;; Scroll Preservation Tests
 
-(ert-deftest pi-gui-test-scroll-preserved-streaming ()
+(ert-deftest pi-coding-agent-gui-test-scroll-preserved-streaming ()
   "Test scroll position preserved during streaming response."
-  (pi-gui-test-with-session
-    (pi-gui-test-ensure-scrollable)
-    (pi-gui-test-scroll-up 20)
-    (should-not (pi-gui-test-at-end-p))
-    (let ((line-before (pi-gui-test-top-line-number)))
+  (pi-coding-agent-gui-test-with-session
+    (pi-coding-agent-gui-test-ensure-scrollable)
+    (pi-coding-agent-gui-test-scroll-up 20)
+    (should-not (pi-coding-agent-gui-test-at-end-p))
+    (let ((line-before (pi-coding-agent-gui-test-top-line-number)))
       (should (> line-before 1))
-      (pi-gui-test-send "Say: ok")
-      (should (= line-before (pi-gui-test-top-line-number))))))
+      (pi-coding-agent-gui-test-send "Say: ok")
+      (should (= line-before (pi-coding-agent-gui-test-top-line-number))))))
 
-(ert-deftest pi-gui-test-scroll-preserved-tool-use ()
+(ert-deftest pi-coding-agent-gui-test-scroll-preserved-tool-use ()
   "Test scroll position preserved when pi uses tools."
-  (pi-gui-test-with-session
-    (pi-gui-test-ensure-scrollable)
-    (let ((test-file (pi-gui-test-create-temp-file "test.txt" "Hi\n")))
+  (pi-coding-agent-gui-test-with-session
+    (pi-coding-agent-gui-test-ensure-scrollable)
+    (let ((test-file (pi-coding-agent-gui-test-create-temp-file "test.txt" "Hi\n")))
       (unwind-protect
           (progn
-            (pi-gui-test-scroll-up 20)
-            (should-not (pi-gui-test-at-end-p))
-            (let ((line-before (pi-gui-test-top-line-number)))
+            (pi-coding-agent-gui-test-scroll-up 20)
+            (should-not (pi-coding-agent-gui-test-at-end-p))
+            (let ((line-before (pi-coding-agent-gui-test-top-line-number)))
               (should (> line-before 1))
-              (pi-gui-test-send (format "Read %s" test-file))
-              (should (= line-before (pi-gui-test-top-line-number)))))
-        (pi-gui-test-delete-temp-file test-file)))))
+              (pi-coding-agent-gui-test-send (format "Read %s" test-file))
+              (should (= line-before (pi-coding-agent-gui-test-top-line-number)))))
+        (pi-coding-agent-gui-test-delete-temp-file test-file)))))
 
-(ert-deftest pi-gui-test-scroll-auto-when-at-end ()
+(ert-deftest pi-coding-agent-gui-test-scroll-auto-when-at-end ()
   "Test auto-scroll when user is at end of buffer."
-  (pi-gui-test-with-session
-    (pi-gui-test-scroll-to-end)
-    (should (pi-gui-test-at-end-p))
-    (pi-gui-test-send "Say: ok")
-    (should (pi-gui-test-at-end-p))))
+  (pi-coding-agent-gui-test-with-session
+    (pi-coding-agent-gui-test-scroll-to-end)
+    (should (pi-coding-agent-gui-test-at-end-p))
+    (pi-coding-agent-gui-test-send "Say: ok")
+    (should (pi-coding-agent-gui-test-at-end-p))))
 
 ;;;; Window Management Tests
 
-(ert-deftest pi-gui-test-window-both-visible ()
+(ert-deftest pi-coding-agent-gui-test-window-both-visible ()
   "Test both chat and input windows are visible."
-  (pi-gui-test-with-session
-    (should (pi-gui-test-chat-window))
-    (should (pi-gui-test-input-window))
-    (should (window-live-p (pi-gui-test-chat-window)))
-    (should (window-live-p (pi-gui-test-input-window)))))
+  (pi-coding-agent-gui-test-with-session
+    (should (pi-coding-agent-gui-test-chat-window))
+    (should (pi-coding-agent-gui-test-input-window))
+    (should (window-live-p (pi-coding-agent-gui-test-chat-window)))
+    (should (window-live-p (pi-coding-agent-gui-test-input-window)))))
 
-(ert-deftest pi-gui-test-window-kill-both ()
+(ert-deftest pi-coding-agent-gui-test-window-kill-both ()
   "Test killing chat buffer also kills input buffer."
-  (pi-gui-test-with-fresh-session
-    (let ((chat-buf (plist-get pi-gui-test--session :chat-buffer))
-          (input-buf (plist-get pi-gui-test--session :input-buffer)))
+  (pi-coding-agent-gui-test-with-fresh-session
+    (let ((chat-buf (plist-get pi-coding-agent-gui-test--session :chat-buffer))
+          (input-buf (plist-get pi-coding-agent-gui-test--session :input-buffer)))
       (should (buffer-live-p chat-buf))
       (should (buffer-live-p input-buf))
       (kill-buffer chat-buf)
@@ -86,44 +86,44 @@
 
 ;;;; Content Tests
 
-(ert-deftest pi-gui-test-content-tool-output-shown ()
+(ert-deftest pi-coding-agent-gui-test-content-tool-output-shown ()
   "Test that tool output appears in chat."
-  (pi-gui-test-with-session
-    (let ((test-file (pi-gui-test-create-temp-file "tool-test.txt" "XYZ123\n")))
+  (pi-coding-agent-gui-test-with-session
+    (let ((test-file (pi-coding-agent-gui-test-create-temp-file "tool-test.txt" "XYZ123\n")))
       (unwind-protect
           (progn
-            (pi-gui-test-send (format "Read the file %s" test-file))
+            (pi-coding-agent-gui-test-send (format "Read the file %s" test-file))
             ;; Tool header proves tool was invoked
-            (should (pi-gui-test-chat-matches "^read "))
+            (should (pi-coding-agent-gui-test-chat-matches "^read "))
             ;; File content should appear in tool output
-            (should (pi-gui-test-chat-contains "XYZ123")))
-        (pi-gui-test-delete-temp-file test-file)))))
+            (should (pi-coding-agent-gui-test-chat-contains "XYZ123")))
+        (pi-coding-agent-gui-test-delete-temp-file test-file)))))
 
-(ert-deftest pi-gui-test-tool-overlay-bounded ()
+(ert-deftest pi-coding-agent-gui-test-tool-overlay-bounded ()
   "Test that tool block overlay doesn't extend beyond tool output.
 Regression test: overlay with rear-advance was extending to subsequent content."
-  (pi-gui-test-with-session
-    (let ((test-file (pi-gui-test-create-temp-file "overlay-test.txt" "BEFORE\n")))
+  (pi-coding-agent-gui-test-with-session
+    (let ((test-file (pi-coding-agent-gui-test-create-temp-file "overlay-test.txt" "BEFORE\n")))
       (unwind-protect
           (progn
             ;; Ask to read file AND say something after
             ;; Be explicit about using the tool - small models may skip it otherwise
-            (pi-gui-test-send
+            (pi-coding-agent-gui-test-send
              (format "Call the read tool on %s and show me its contents. After the tool output, say ENDMARKER." test-file))
             ;; Wait for both tool output and the text response
-            (should (pi-gui-test-chat-contains "BEFORE"))
-            (should (pi-gui-test-chat-contains "ENDMARKER"))
+            (should (pi-coding-agent-gui-test-chat-contains "BEFORE"))
+            (should (pi-coding-agent-gui-test-chat-contains "ENDMARKER"))
             ;; Now check: ENDMARKER should NOT be inside a tool-block overlay
-            (with-current-buffer (plist-get pi-gui-test--session :chat-buffer)
+            (with-current-buffer (plist-get pi-coding-agent-gui-test--session :chat-buffer)
               (goto-char (point-min))
               (when (search-forward "ENDMARKER" nil t)
                 (let* ((pos (match-beginning 0))
                        (overlays (overlays-at pos))
                        (tool-overlay (seq-find
-                                      (lambda (ov) (overlay-get ov 'pi-tool-block))
+                                      (lambda (ov) (overlay-get ov 'pi-coding-agent-tool-block))
                                       overlays)))
                   (should-not tool-overlay)))))
-        (pi-gui-test-delete-temp-file test-file)))))
+        (pi-coding-agent-gui-test-delete-temp-file test-file)))))
 
 (provide 'pi-coding-agent-gui-tests)
 ;;; pi-coding-agent-gui-tests.el ends here
