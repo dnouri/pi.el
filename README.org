@@ -50,7 +50,8 @@ Or with =use-package=:
 
 #+begin_src emacs-lisp
 (use-package pi-coding-agent
-  :ensure t)
+  :ensure t
+  :init (defalias 'pi 'pi-coding-agent))
 #+end_src
 
 If you don't have MELPA configured, add this to your init file:
@@ -78,23 +79,19 @@ Or with =use-package=:
 
 #+begin_src emacs-lisp
 (use-package pi-coding-agent
-  :load-path "~/.emacs.d/site-lisp/pi-coding-agent")
+  :load-path "~/.emacs.d/site-lisp/pi-coding-agent"
+  :init (defalias 'pi 'pi-coding-agent))
 #+end_src
 
 * Usage
 
-Start a session with =M-x pi-coding-agent=. This opens two windows:
+Start a session with =M-x pi=. This opens two windows:
 - *Chat buffer* (top): Shows conversation history with rendered markdown
 - *Input buffer* (bottom): Where you compose prompts
 
 Type your prompt and press =C-c C-c= to send. Press =C-c C-p= for the full command menu.
 
-For multiple sessions in the same directory, use =C-u M-x pi-coding-agent= to create a named session.
-
-*Tip:* For a shorter command, add to your init file:
-#+begin_src emacs-lisp
-(defalias 'pi 'pi-coding-agent)
-#+end_src
+For multiple sessions in the same directory, use =C-u M-x pi= to create a named session.
 
 * Key Bindings
 
@@ -119,6 +116,7 @@ Example configuration with =use-package=:
 #+begin_src emacs-lisp
 (use-package pi-coding-agent
   :ensure t
+  :init (defalias 'pi 'pi-coding-agent)
   :custom
   (pi-coding-agent-input-window-height 10)      ; Height of input window
   (pi-coding-agent-tool-preview-lines 10)       ; Lines shown before collapsing tool output
