@@ -1044,7 +1044,7 @@ and removes the input window (merging its space with adjacent windows)."
 (defun pi-coding-agent--render-complete-message ()
   "Finalize completed message by applying font-lock and aligning tables.
 Uses message-start-marker and streaming-marker to find content.
-Markdown stays as-is; gfm-mode handles highlighting and markup hiding.
+Markdown stays as-is; `gfm-mode' handles highlighting and markup hiding.
 Ensures message ends with newline for proper spacing."
   (when (and pi-coding-agent--message-start-marker pi-coding-agent--streaming-marker)
     (let ((start (marker-position pi-coding-agent--message-start-marker))
