@@ -1917,8 +1917,10 @@ Used when starting a new session."
 (defun pi-coding-agent--display-session-history (messages &optional chat-buf)
   "Display session history MESSAGES in the chat buffer.
 MESSAGES is a vector of message plists from get_messages RPC.
-CHAT-BUF is the target buffer; if nil, uses `pi-coding-agent--get-chat-buffer'."
-  (when-let ((chat-buf (or chat-buf (pi-coding-agent--get-chat-buffer))))
+CHAT-BUF is the target buffer; if nil, uses `pi-coding-agent--get-chat-buffer'.
+Note: When called from async callbacks, pass CHAT-BUF explicitly."
+  (setq chat-buf (or chat-buf (pi-coding-agent--get-chat-buffer)))
+  (when (and chat-buf (buffer-live-p chat-buf))
     (with-current-buffer chat-buf
       (let ((inhibit-read-only t))
         ;; Clear buffer
@@ -1943,16 +1945,16 @@ CHAT-BUF is the target buffer; if nil, uses `pi-coding-agent--get-chat-buffer'."
 Calls CALLBACK with message count when done.
 CHAT-BUF is the target buffer; if nil, uses `pi-coding-agent--get-chat-buffer'.
 Note: When called from async callbacks, pass CHAT-BUF explicitly."
-  (let ((target-buf (or chat-buf (pi-coding-agent--get-chat-buffer))))
+  (let ((chat-buf (or chat-buf (pi-coding-agent--get-chat-buffer))))
     (pi-coding-agent--rpc-async proc '(:type "get_messages")
                    (lambda (response)
                      (when (plist-get response :success)
                        (let* ((messages (plist-get (plist-get response :data) :messages))
                               (count (if (vectorp messages) (length messages) 0)))
-                         (pi-coding-agent--display-session-history messages target-buf)
+                         (pi-coding-agent--display-session-history messages chat-buf)
                          ;; Update header with new session info
-                         (when (buffer-live-p target-buf)
-                           (with-current-buffer target-buf
+                         (when (buffer-live-p chat-buf)
+                           (with-current-buffer chat-buf
                              (pi-coding-agent--refresh-header)))
                          (when callback
                            (funcall callback count))))))))
@@ -2149,7 +2151,8 @@ Shows a selector of user messages and creates a branch from the selected one."
 
 (defun pi-coding-agent--show-branch-selector (proc messages)
   "Show selector for MESSAGES and branch on selection.
-PROC is the pi process.  MESSAGES is a list of plists from get_branch_messages."
+PROC is the pi process.
+MESSAGES is a vector of plists from get_branch_messages."
   (let* ((index 0)
          (formatted (mapcar (lambda (msg)
                               (setq index (1+ index))
@@ -2179,6 +2182,7 @@ PROC is the pi process.  MESSAGES is a list of plists from get_branch_messages."
                                (when (buffer-live-p input-buf)
                                  (with-current-buffer input-buf
                                    (erase-buffer)
+                                   ;; text may be nil if RPC returns null
                                    (when text (insert text)))))
                            (message "Pi: Branch failed"))))))))
 
