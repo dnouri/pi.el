@@ -1914,10 +1914,11 @@ Used when starting a new session."
         ;; Position at end
         (goto-char (point-max))))))
 
-(defun pi-coding-agent--display-session-history (messages)
+(defun pi-coding-agent--display-session-history (messages &optional chat-buf)
   "Display session history MESSAGES in the chat buffer.
-MESSAGES is a vector of message plists from get_messages RPC."
-  (when-let ((chat-buf (pi-coding-agent--get-chat-buffer)))
+MESSAGES is a vector of message plists from get_messages RPC.
+CHAT-BUF is the target buffer; if nil, uses `pi-coding-agent--get-chat-buffer'."
+  (when-let ((chat-buf (or chat-buf (pi-coding-agent--get-chat-buffer))))
     (with-current-buffer chat-buf
       (let ((inhibit-read-only t))
         ;; Clear buffer
@@ -1937,21 +1938,24 @@ MESSAGES is a vector of message plists from get_messages RPC."
         ;; Scroll to end
         (goto-char (point-max))))))
 
-(defun pi-coding-agent--load-session-history (proc callback)
+(defun pi-coding-agent--load-session-history (proc callback &optional chat-buf)
   "Load and display session history from PROC.
-Calls CALLBACK with message count when done."
-  (pi-coding-agent--rpc-async proc '(:type "get_messages")
-                 (lambda (response)
-                   (when (plist-get response :success)
-                     (let* ((messages (plist-get (plist-get response :data) :messages))
-                            (count (if (vectorp messages) (length messages) 0)))
-                       (pi-coding-agent--display-session-history messages)
-                       ;; Update header with new session info
-                       (when-let ((chat-buf (pi-coding-agent--get-chat-buffer)))
-                         (with-current-buffer chat-buf
-                           (pi-coding-agent--refresh-header)))
-                       (when callback
-                         (funcall callback count)))))))
+Calls CALLBACK with message count when done.
+CHAT-BUF is the target buffer; if nil, uses `pi-coding-agent--get-chat-buffer'.
+Note: When called from async callbacks, pass CHAT-BUF explicitly."
+  (let ((target-buf (or chat-buf (pi-coding-agent--get-chat-buffer))))
+    (pi-coding-agent--rpc-async proc '(:type "get_messages")
+                   (lambda (response)
+                     (when (plist-get response :success)
+                       (let* ((messages (plist-get (plist-get response :data) :messages))
+                              (count (if (vectorp messages) (length messages) 0)))
+                         (pi-coding-agent--display-session-history messages target-buf)
+                         ;; Update header with new session info
+                         (when (buffer-live-p target-buf)
+                           (with-current-buffer target-buf
+                             (pi-coding-agent--refresh-header)))
+                         (when callback
+                           (funcall callback count))))))))
 
 ;;;###autoload
 (defun pi-coding-agent-resume-session ()
@@ -1966,7 +1970,9 @@ Calls CALLBACK with message count when done."
                (choice (completing-read "Resume session: "
                                         (mapcar #'car choices)
                                         nil t))
-               (selected-path (cdr (assoc choice choices))))
+               (selected-path (cdr (assoc choice choices)))
+               ;; Capture chat buffer before async call
+               (chat-buf (pi-coding-agent--get-chat-buffer)))
           (when selected-path
             (pi-coding-agent--rpc-async proc (list :type "switch_session"
                                       :sessionPath selected-path)
@@ -1978,7 +1984,8 @@ Calls CALLBACK with message count when done."
                                    (pi-coding-agent--load-session-history
                                     proc
                                     (lambda (count)
-                                      (message "Pi: Resumed session (%d messages)" count)))
+                                      (message "Pi: Resumed session (%d messages)" count))
+                                    chat-buf)
                                  (message "Pi: Failed to resume session")))))))))))
 
 (defun pi-coding-agent-select-model ()
@@ -2151,7 +2158,10 @@ PROC is the pi process.  MESSAGES is a list of plists from get_branch_messages."
          (choice (completing-read "Branch from: "
                                   (mapcar #'car formatted)
                                   nil t))
-         (selected (cdr (assoc choice formatted))))
+         (selected (cdr (assoc choice formatted)))
+         ;; Capture buffers before async call (callback runs in arbitrary context)
+         (chat-buf (pi-coding-agent--get-chat-buffer))
+         (input-buf (pi-coding-agent--get-input-buffer)))
     (when selected
       (let ((entry-id (plist-get selected :entryId)))
         (pi-coding-agent--rpc-async proc (list :type "branch" :entryId entry-id)
@@ -2163,12 +2173,13 @@ PROC is the pi process.  MESSAGES is a list of plists from get_branch_messages."
                                (pi-coding-agent--load-session-history
                                 proc
                                 (lambda (count)
-                                  (message "Pi: Branched to new session (%d messages)" count)))
+                                  (message "Pi: Branched to new session (%d messages)" count))
+                                chat-buf)
                                ;; Pre-fill input with the selected message text
-                               (when-let ((input-buf (pi-coding-agent--get-input-buffer)))
+                               (when (buffer-live-p input-buf)
                                  (with-current-buffer input-buf
                                    (erase-buffer)
-                                   (insert text))))
+                                   (when text (insert text)))))
                            (message "Pi: Branch failed"))))))))
 
 (defun pi-coding-agent--run-custom-command (cmd)

@@ -1465,6 +1465,30 @@ The branch code must use seq-empty-p or length check."
     (let ((result (pi-coding-agent--format-branch-message msg 1)))
       (should (stringp result)))))
 
+(ert-deftest pi-coding-agent-test-load-session-history-uses-provided-buffer ()
+  "load-session-history uses provided chat buffer, not current buffer context.
+This ensures history loads correctly when callback runs in arbitrary context."
+  (let* ((chat-buf (generate-new-buffer "*pi-coding-agent-chat:test-history/*"))
+         (rpc-callback nil))
+    (unwind-protect
+        (progn
+          (with-current-buffer chat-buf
+            (pi-coding-agent-chat-mode))
+          ;; Mock RPC to capture callback
+          (cl-letf (((symbol-function 'pi-coding-agent--rpc-async)
+                     (lambda (_proc _cmd cb) (setq rpc-callback cb))))
+            ;; Call with explicit buffer
+            (pi-coding-agent--load-session-history 'mock-proc nil chat-buf))
+          ;; Simulate callback from different buffer context
+          (with-temp-buffer
+            (funcall rpc-callback
+                     '(:success t :data (:messages [(:role "user" :content "test")]))))
+          ;; Chat buffer should have been updated (has startup header)
+          (with-current-buffer chat-buf
+            (should (string-match-p "C-c C-c" (buffer-string)))))
+      (when (buffer-live-p chat-buf)
+        (kill-buffer chat-buf)))))
+
 (ert-deftest pi-coding-agent-test-session-dir-name ()
   "Session directory name derived from project path."
   (should (equal (pi-coding-agent--session-dir-name "/home/daniel/co/pi-coding-agent")
