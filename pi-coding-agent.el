@@ -2303,6 +2303,29 @@ using the cached session file."
                            (message "Pi: %s" (pi-coding-agent--format-session-stats data)))
                        (message "Pi: Failed to get session stats"))))))
 
+(defun pi-coding-agent-process-info ()
+  "Display process information for debugging.
+Shows PID, status, and session file."
+  (interactive)
+  (let* ((chat-buf (pi-coding-agent--get-chat-buffer))
+         (proc (and chat-buf (buffer-local-value 'pi-coding-agent--process chat-buf)))
+         (state (and chat-buf (buffer-local-value 'pi-coding-agent--state chat-buf)))
+         (status (and chat-buf (buffer-local-value 'pi-coding-agent--status chat-buf)))
+         (session-file (and state (plist-get state :session-file))))
+    (cond
+     ((not chat-buf)
+      (message "Pi: No session"))
+     ((not proc)
+      (message "Pi: No process (status: %s, session: %s)"
+               status
+               (or session-file "none")))
+     (t
+      (message "Pi: PID %s, %s (status: %s, session: %s)"
+               (process-id proc)
+               (if (process-live-p proc) "alive" "dead")
+               status
+               (or (and session-file (file-name-nondirectory session-file)) "none"))))))
+
 (defun pi-coding-agent-compact ()
   "Compact conversation context to reduce token usage."
   (interactive)
