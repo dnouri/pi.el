@@ -2550,3 +2550,28 @@ display-agent-end must finalize the pending overlay with error face."
               (should error-shown))))
       (when (buffer-live-p chat-buf)
         (kill-buffer chat-buf)))))
+
+(ert-deftest pi-coding-agent-test-send-stops-spinner-when-process-dead ()
+  "Sending when process is dead stops spinner and resets status."
+  (let ((chat-buf (get-buffer-create "*pi-coding-agent-test-spinner-dead*"))
+        (input-buf (get-buffer-create "*pi-coding-agent-test-spinner-dead-input*")))
+    (unwind-protect
+        (progn
+          (with-current-buffer chat-buf
+            (pi-coding-agent-chat-mode)
+            (setq pi-coding-agent--input-buffer input-buf)
+            ;; Set up dead process
+            (let ((dead-proc (start-process "test-dead" nil "true")))
+              (while (process-live-p dead-proc)
+                (sleep-for 0.01))
+              (setq pi-coding-agent--process dead-proc)))
+          (with-current-buffer input-buf
+            (pi-coding-agent-input-mode)
+            (setq pi-coding-agent--chat-buffer chat-buf)
+            (insert "test message")
+            (pi-coding-agent-send))
+          ;; Verify spinner stopped and status reset
+          (with-current-buffer chat-buf
+            (should (eq pi-coding-agent--status 'idle))))
+      (when (buffer-live-p chat-buf) (kill-buffer chat-buf))
+      (when (buffer-live-p input-buf) (kill-buffer input-buf)))))

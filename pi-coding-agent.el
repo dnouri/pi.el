@@ -1056,16 +1056,28 @@ Slash commands are expanded before display and sending."
 If TEXT starts with /, tries to expand as a custom slash command.
 Shows an error message if process is unavailable."
   (let ((proc (pi-coding-agent--get-process))
+        (chat-buf (pi-coding-agent--get-chat-buffer))
         (expanded (pi-coding-agent--expand-slash-command text)))
     (cond
      ((null proc)
+      (pi-coding-agent--abort-send chat-buf)
       (message "Pi: No process available - try M-x pi-coding-agent-recover or C-c C-p R"))
      ((not (process-live-p proc))
+      (pi-coding-agent--abort-send chat-buf)
       (message "Pi: Process died - try M-x pi-coding-agent-recover or C-c C-p R"))
      (t
       (pi-coding-agent--rpc-async proc
                      (list :type "prompt" :message expanded)
                      #'ignore)))))
+
+(defun pi-coding-agent--abort-send (chat-buf)
+  "Clean up after a failed send attempt in CHAT-BUF.
+Stops spinner and resets status to idle."
+  (when (buffer-live-p chat-buf)
+    (with-current-buffer chat-buf
+      (pi-coding-agent--spinner-stop)
+      (setq pi-coding-agent--status 'idle)
+      (force-mode-line-update))))
 
 (defun pi-coding-agent-abort ()
   "Abort the current pi operation.
