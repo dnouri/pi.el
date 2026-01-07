@@ -487,10 +487,19 @@ TYPE is :chat or :input.  Returns the buffer."
 (defvar-local pi-coding-agent--streaming-marker nil
   "Marker for current streaming insertion point.")
 
-(defvar-local pi-coding-agent--last-was-newline t
-  "Non-nil if last streamed character was a newline.
-Used to detect ATX headings at line starts for leveling down.
-Starts as t because content begins after our separator newline.")
+(defvar-local pi-coding-agent--in-code-block nil
+  "Non-nil when streaming inside a fenced code block.
+Used to suppress ATX heading transforms inside code.")
+
+(defvar-local pi-coding-agent--line-parse-state 'line-start
+  "Parsing state for current line during streaming.
+Values:
+  `line-start' - at beginning of line, ready for heading or fence
+  `fence-1'    - seen one backtick at line start
+  `fence-2'    - seen two backticks at line start
+  `mid-line'   - somewhere in middle of line
+
+Starts as `line-start' because content begins after separator newline.")
 
 ;; pi-coding-agent--status is defined in pi-coding-agent-core.el as the single source of truth
 ;; for session activity state (idle, sending, streaming, compacting)
@@ -645,45 +654,78 @@ Note: status is set to `streaming' by the event handler."
   ;; streaming-marker: where new deltas are inserted
   (setq pi-coding-agent--message-start-marker (copy-marker (point-max) nil))
   (setq pi-coding-agent--streaming-marker (copy-marker (point-max) t))
-  ;; Reset heading transform state - content starts after newline
-  (setq pi-coding-agent--last-was-newline t)
+  ;; Reset streaming parse state - content starts at line beginning, outside code block
+  (setq pi-coding-agent--line-parse-state 'line-start)
+  (setq pi-coding-agent--in-code-block nil)
   (pi-coding-agent--spinner-start)
   (force-mode-line-update))
 
-(defun pi-coding-agent--transform-atx-headings (delta at-line-start)
-  "Transform ATX headings in DELTA by adding one # level.
-AT-LINE-START is non-nil if DELTA starts at beginning of a line.
-Returns (TRANSFORMED-DELTA . ENDS-WITH-NEWLINE).
+(defun pi-coding-agent--process-streaming-char (char state in-block)
+  "Process CHAR with current STATE and IN-BLOCK flag.
+Returns (NEW-STATE . NEW-IN-BLOCK).
+STATE is one of: `line-start', `fence-1', `fence-2', `mid-line'."
+  (pcase state
+    ('line-start
+     (cond
+      ((eq char ?`) (cons 'fence-1 in-block))
+      ((eq char ?\n) (cons 'line-start in-block))
+      (t (cons 'mid-line in-block))))
+    ('fence-1
+     (cond
+      ((eq char ?`) (cons 'fence-2 in-block))
+      ((eq char ?\n) (cons 'line-start in-block))
+      (t (cons 'mid-line in-block))))
+    ('fence-2
+     (cond
+      ((eq char ?`) (cons 'mid-line (not in-block)))  ; Toggle code block!
+      ((eq char ?\n) (cons 'line-start in-block))     ; Was just ``
+      (t (cons 'mid-line in-block))))                 ; Was inline ``x
+    ('mid-line
+     (if (eq char ?\n)
+         (cons 'line-start in-block)
+       (cons 'mid-line in-block)))))
 
-This levels down LLM headings so our setext H1 separators remain
-the top-level document structure."
-  (let ((result delta)
-        (ends-with-newline (and (> (length delta) 0)
-                                (eq (aref delta (1- (length delta))) ?\n))))
-    ;; Transform # at start if we're at line beginning
-    (when (and at-line-start (string-match "\\`\\(#+\\)" result))
-      (setq result (concat "#" result)))
-    ;; Transform # after any newlines within the delta
-    (setq result (replace-regexp-in-string "\n\\(#+\\)" "\n#\\1" result))
-    (cons result ends-with-newline)))
+(defun pi-coding-agent--transform-delta (delta)
+  "Transform DELTA for display, handling code blocks and heading levels.
+Uses and updates buffer-local state variables for parse state.
+Returns the transformed string."
+  (let ((result (make-string 0 ?x))
+        (state pi-coding-agent--line-parse-state)
+        (in-block pi-coding-agent--in-code-block)
+        (i 0)
+        (len (length delta)))
+    (while (< i len)
+      (let* ((char (aref delta i))
+             (at-heading-start (and (eq state 'line-start)
+                                    (not in-block)
+                                    (eq char ?#))))
+        ;; Add extra # for heading transform
+        (when at-heading-start
+          (setq result (concat result "#")))
+        ;; Add the character
+        (setq result (concat result (char-to-string char)))
+        ;; Update state
+        (let ((new-state (pi-coding-agent--process-streaming-char char state in-block)))
+          (setq state (car new-state))
+          (setq in-block (cdr new-state)))
+        (setq i (1+ i))))
+    ;; Save final state for next delta
+    (setq pi-coding-agent--line-parse-state state)
+    (setq pi-coding-agent--in-code-block in-block)
+    result))
 
 (defun pi-coding-agent--display-message-delta (delta)
   "Display streaming message DELTA at the streaming marker.
-Transforms ATX headings by adding one # level to keep our setext
-H1 separators as the top-level document structure."
+Transforms ATX headings (outside code blocks) by adding one # level
+to keep our setext H1 separators as the top-level document structure."
   (when (and delta pi-coding-agent--streaming-marker)
     (let* ((inhibit-read-only t)
-           (transform-result (pi-coding-agent--transform-atx-headings
-                              delta pi-coding-agent--last-was-newline))
-           (transformed (car transform-result))
-           (ends-newline (cdr transform-result)))
+           (transformed (pi-coding-agent--transform-delta delta)))
       (pi-coding-agent--with-scroll-preservation
         (save-excursion
           (goto-char (marker-position pi-coding-agent--streaming-marker))
           (insert transformed)
-          (set-marker pi-coding-agent--streaming-marker (point))))
-      ;; Update state for next delta
-      (setq pi-coding-agent--last-was-newline ends-newline))))
+          (set-marker pi-coding-agent--streaming-marker (point)))))))
 
 (defun pi-coding-agent--display-thinking-start ()
   "Insert opening marker for thinking block."

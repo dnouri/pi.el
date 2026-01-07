@@ -2225,3 +2225,42 @@ display-agent-end must finalize the pending overlay with error face."
                           (lambda (ov) (overlay-get ov 'pi-coding-agent-tool-block))
                           overlays)))
       (should-not tool-overlay))))
+
+(ert-deftest pi-coding-agent-test-delta-no-transform-inside-code-block ()
+  "Hash inside fenced code block should NOT be transformed."
+  (with-temp-buffer
+    (pi-coding-agent-chat-mode)
+    (pi-coding-agent--display-agent-start)
+    (pi-coding-agent--display-message-delta "```python\n# This is a comment\n```")
+    ;; The # inside code block should stay as single #
+    (should (string-match-p "^# This is a comment$" (buffer-string)))))
+
+(ert-deftest pi-coding-agent-test-delta-transform-resumes-after-code-block ()
+  "Headings after code block closes should be transformed."
+  (with-temp-buffer
+    (pi-coding-agent-chat-mode)
+    (pi-coding-agent--display-agent-start)
+    (pi-coding-agent--display-message-delta "```\n# comment\n```\n# Real Heading")
+    ;; Inside block: stays #
+    (should (string-match-p "^# comment$" (buffer-string)))
+    ;; After block: becomes ##
+    (should (string-match-p "^## Real Heading" (buffer-string)))))
+
+(ert-deftest pi-coding-agent-test-delta-code-fence-split-across-deltas ()
+  "Code fence split across deltas still detected."
+  (with-temp-buffer
+    (pi-coding-agent-chat-mode)
+    (pi-coding-agent--display-agent-start)
+    (pi-coding-agent--display-message-delta "``")
+    (pi-coding-agent--display-message-delta "`python\n# comment\n```")
+    ;; Should recognize the split ``` and not transform inside
+    (should (string-match-p "^# comment$" (buffer-string)))))
+
+(ert-deftest pi-coding-agent-test-delta-backticks-mid-line-not-fence ()
+  "Backticks mid-line don't trigger code block state."
+  (with-temp-buffer
+    (pi-coding-agent-chat-mode)
+    (pi-coding-agent--display-agent-start)
+    (pi-coding-agent--display-message-delta "Use ```code``` inline\n# Heading")
+    ;; Inline backticks shouldn't affect heading transform
+    (should (string-match-p "^## Heading" (buffer-string)))))
