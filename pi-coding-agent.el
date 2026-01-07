@@ -1020,11 +1020,10 @@ Updates buffer-local state and renders display updates."
 (defun pi-coding-agent-send ()
   "Send the current input buffer contents to pi.
 Clears the input buffer after sending.  Does nothing if buffer is empty.
-If text starts with /, tries to expand as a custom slash command.
-If pi is currently streaming, shows a message and preserves input."
+If pi is currently streaming, shows a message and preserves input.
+Slash command expansion happens in `pi-coding-agent--send-prompt'."
   (interactive)
   (let* ((text (string-trim (buffer-string)))
-         (expanded (pi-coding-agent--expand-slash-command text))
          (chat-buf (pi-coding-agent--get-chat-buffer))
          (streaming (and chat-buf
                          (buffer-local-value 'pi-coding-agent--status chat-buf)
@@ -1049,12 +1048,14 @@ If pi is currently streaming, shows a message and preserves input."
         (setq pi-coding-agent--assistant-header-shown nil)  ; Reset for new prompt
         (pi-coding-agent--spinner-start)
         (force-mode-line-update))
-      (pi-coding-agent--send-prompt expanded)))))
+      (pi-coding-agent--send-prompt text)))))
 
 (defun pi-coding-agent--send-prompt (text)
   "Send TEXT as a prompt to the pi process.
+If TEXT starts with /, tries to expand as a custom slash command.
 Shows an error message if process is unavailable."
-  (let ((proc (pi-coding-agent--get-process)))
+  (let ((proc (pi-coding-agent--get-process))
+        (expanded (pi-coding-agent--expand-slash-command text)))
     (cond
      ((null proc)
       (message "Pi: No process available - try M-x pi to restart"))
@@ -1062,7 +1063,7 @@ Shows an error message if process is unavailable."
       (message "Pi: Process died - try M-x pi to restart"))
      (t
       (pi-coding-agent--rpc-async proc
-                     (list :type "prompt" :message text)
+                     (list :type "prompt" :message expanded)
                      #'ignore)))))
 
 (defun pi-coding-agent-abort ()

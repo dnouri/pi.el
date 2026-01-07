@@ -1918,21 +1918,22 @@ Regression test for #27: history was shared across all sessions."
     (should (equal (pi-coding-agent--expand-slash-command "hello world")
                    "hello world"))))
 
-(ert-deftest pi-coding-agent-test-send-expands-slash-command ()
-  "pi-coding-agent-send expands slash commands before sending."
-  (let* ((sent-text nil)
-         (pi-coding-agent--file-commands '((:name "greet" :content "Hello $@!"))))
-    (cl-letf (((symbol-function 'pi-coding-agent--get-chat-buffer)
-               (lambda () (current-buffer)))
-              ((symbol-function 'pi-coding-agent--display-user-message)
-               (lambda (_text &optional _timestamp) nil))
-              ((symbol-function 'pi-coding-agent--send-prompt)
-               (lambda (text) (setq sent-text text))))
-      (with-temp-buffer
-        (pi-coding-agent-input-mode)
-        (insert "/greet world")
-        (pi-coding-agent-send)
-        (should (equal sent-text "Hello world!"))))))
+(ert-deftest pi-coding-agent-test-send-prompt-expands-slash-command ()
+  "pi-coding-agent--send-prompt expands slash commands before sending to process.
+This ensures all send paths get expansion, not just pi-coding-agent-send."
+  (let* ((rpc-message nil)
+         (pi-coding-agent--file-commands '((:name "greet" :content "Hello $@!")))
+         (fake-proc (start-process "test" nil "cat")))
+    (unwind-protect
+        (cl-letf (((symbol-function 'pi-coding-agent--get-process)
+                   (lambda () fake-proc))
+                  ((symbol-function 'pi-coding-agent--rpc-async)
+                   (lambda (_proc msg _cb) (setq rpc-message msg))))
+          (pi-coding-agent--send-prompt "/greet world")
+          (should (equal (plist-get rpc-message :message) "Hello world!")))
+      (delete-process fake-proc))))
+
+
 
 (ert-deftest pi-coding-agent-test-format-session-stats ()
   "Format session stats returns readable string."
