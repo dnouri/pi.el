@@ -100,6 +100,12 @@ Bash output is typically more verbose, so fewer lines are shown."
   :type 'natnum
   :group 'pi-coding-agent)
 
+(defcustom pi-coding-agent-preview-max-bytes 51200
+  "Maximum bytes for tool output preview (50KB default).
+Prevents huge single-line outputs from blowing up the chat buffer."
+  :type 'natnum
+  :group 'pi-coding-agent)
+
 (defcustom pi-coding-agent-context-warning-threshold 70
   "Context usage percentage at which to show warning color."
   :type 'natnum
@@ -1132,6 +1138,42 @@ Checks both :path and :file_path keys for compatibility."
   (or (plist-get args :path)
       (plist-get args :file_path)))
 
+(defun pi-coding-agent--truncate-to-visual-lines (content max-lines width)
+  "Truncate CONTENT to fit within MAX-LINES visual lines at WIDTH.
+Also respects `pi-coding-agent-preview-max-bytes'.
+
+Returns a plist with:
+  :content      - the truncated content (or original if no truncation)
+  :visual-lines - number of visual lines in result
+  :hidden-lines - number of raw lines that were hidden"
+  (let* ((lines (split-string content "\n"))
+         (total-raw-lines (length lines))
+         (visual-count 0)
+         (byte-count 0)
+         (max-bytes pi-coding-agent-preview-max-bytes)
+         (result-lines nil))
+    ;; Accumulate lines until we'd exceed limits
+    (catch 'done
+      (dolist (line lines)
+        (let* ((line-len (length line))
+               ;; Visual lines: ceiling(length / width), minimum 1
+               (line-visual-lines (max 1 (ceiling (float line-len) width)))
+               (new-visual-count (+ visual-count line-visual-lines))
+               ;; +1 for newline between lines
+               (new-byte-count (+ byte-count line-len (if result-lines 1 0))))
+          ;; Check if adding this line would exceed limits
+          (when (and result-lines  ; always include at least one line
+                     (or (> new-visual-count max-lines)
+                         (> new-byte-count max-bytes)))
+            (throw 'done nil))
+          (setq visual-count new-visual-count)
+          (setq byte-count new-byte-count)
+          (push line result-lines))))
+    (let ((kept-lines (nreverse result-lines)))
+      (list :content (string-join kept-lines "\n")
+            :visual-lines visual-count
+            :hidden-lines (- total-raw-lines (length kept-lines))))))
+
 (defun pi-coding-agent--tool-overlay-create (tool-name)
   "Create overlay for tool block TOOL-NAME at point.
 Returns the overlay.  The overlay uses rear-advance so it
@@ -1220,21 +1262,22 @@ Shows preview lines with expandable toggle for long output."
                             ("edit" (or (plist-get details :diff) raw-output))
                             ("write" (or (plist-get args :content) raw-output))
                             (_ raw-output)))
-         (lines (split-string display-content "\n" t))
-         (total-lines (length lines))
          (preview-limit (pcase tool-name
                           ("bash" pi-coding-agent-bash-preview-lines)
                           (_ pi-coding-agent-tool-preview-lines)))
-         (needs-collapse (> total-lines preview-limit))
+         ;; Use visual line truncation with byte limit
+         (width (or (window-width) 80))
+         (truncation (pi-coding-agent--truncate-to-visual-lines
+                      display-content preview-limit width))
+         (hidden-count (plist-get truncation :hidden-lines))
+         (needs-collapse (> hidden-count 0))
          (inhibit-read-only t))
     (pi-coding-agent--with-scroll-preservation
       (goto-char (point-max))
       (if needs-collapse
           ;; Long output: show preview + toggle button
-          (let* ((preview-lines (seq-take lines preview-limit))
-                 (preview-content (string-join preview-lines "\n"))
+          (let* ((preview-content (plist-get truncation :content))
                  (full-content display-content)
-                 (hidden-count (- total-lines preview-limit))
                  ;; Render preview with syntax highlighting
                  (rendered-preview (pi-coding-agent--render-tool-content preview-content lang)))
             (insert rendered-preview "\n")
