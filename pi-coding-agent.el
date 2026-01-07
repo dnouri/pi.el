@@ -487,6 +487,11 @@ TYPE is :chat or :input.  Returns the buffer."
 (defvar-local pi-coding-agent--streaming-marker nil
   "Marker for current streaming insertion point.")
 
+(defvar-local pi-coding-agent--last-was-newline t
+  "Non-nil if last streamed character was a newline.
+Used to detect ATX headings at line starts for leveling down.
+Starts as t because content begins after our separator newline.")
+
 ;; pi-coding-agent--status is defined in pi-coding-agent-core.el as the single source of truth
 ;; for session activity state (idle, sending, streaming, compacting)
 
@@ -601,35 +606,22 @@ Windows where user scrolled up (point earlier) stay in place."
         (insert text)))))
 
 (defun pi-coding-agent--make-separator (label face &optional timestamp)
-  "Create a separator line with LABEL styled with FACE.
-If TIMESTAMP (Emacs time value) is provided, display it right-aligned.
-The label stays centered; timestamp eats into the right dashes.
-Returns a decorated separator line with centered label."
-  (let* ((label-str (concat " " label " "))
-         (total-width (- pi-coding-agent-separator-width 2))  ; Account for "* " prefix
-         (label-len (length label-str))
-         ;; Calculate symmetric dash count (same for both sides without timestamp)
-         (dash-count (max 4 (/ (- total-width label-len) 2)))
-         (left-dashes (make-string dash-count ?─)))
-    (if timestamp
-        ;; With timestamp: label stays centered, timestamp eats into right dashes
-        (let* ((timestamp-str (pi-coding-agent--format-message-timestamp timestamp))
-               (timestamp-len (length timestamp-str))
-               ;; Right dashes reduced by timestamp length, keep at least 1 trailing dash
-               (right-dash-count (max 1 (- dash-count timestamp-len 1)))
-               (right-dashes (make-string right-dash-count ?─))
-               (decorated (concat (propertize left-dashes 'face 'pi-coding-agent-separator)
-                                  (propertize label-str 'face face)
-                                  (propertize right-dashes 'face 'pi-coding-agent-separator)
-                                  (propertize timestamp-str 'face 'pi-coding-agent-timestamp)
-                                  (propertize "─" 'face 'pi-coding-agent-separator))))
-          (concat "* " decorated))
-      ;; Without timestamp: symmetric dashes around label
-      (let* ((right-dashes (make-string dash-count ?─))
-             (decorated (concat (propertize left-dashes 'face 'pi-coding-agent-separator)
-                                (propertize label-str 'face face)
-                                (propertize right-dashes 'face 'pi-coding-agent-separator))))
-        (concat "* " decorated)))))
+  "Create a setext-style H1 heading separator with LABEL styled with FACE.
+If TIMESTAMP (Emacs time value) is provided, append it after \" · \".
+Returns a markdown setext heading: label line followed by === underline.
+
+Using setext headings enables outline/imenu navigation and keeps our
+turn markers as H1 while LLM ATX headings are leveled down to H2+."
+  (let* ((timestamp-str (when timestamp
+                          (pi-coding-agent--format-message-timestamp timestamp)))
+         (header-line (if timestamp-str
+                          (concat label " · " timestamp-str)
+                        label))
+         ;; Underline must be at least 3 chars, and at least as long as header
+         (underline-len (max 3 (length header-line)))
+         (underline (make-string underline-len ?=)))
+    (concat (propertize header-line 'face face) "\n"
+            (propertize underline 'face 'pi-coding-agent-separator))))
 
 (defun pi-coding-agent--display-user-message (text &optional timestamp)
   "Display user message TEXT in the chat buffer.
@@ -653,18 +645,45 @@ Note: status is set to `streaming' by the event handler."
   ;; streaming-marker: where new deltas are inserted
   (setq pi-coding-agent--message-start-marker (copy-marker (point-max) nil))
   (setq pi-coding-agent--streaming-marker (copy-marker (point-max) t))
+  ;; Reset heading transform state - content starts after newline
+  (setq pi-coding-agent--last-was-newline t)
   (pi-coding-agent--spinner-start)
   (force-mode-line-update))
 
+(defun pi-coding-agent--transform-atx-headings (delta at-line-start)
+  "Transform ATX headings in DELTA by adding one # level.
+AT-LINE-START is non-nil if DELTA starts at beginning of a line.
+Returns (TRANSFORMED-DELTA . ENDS-WITH-NEWLINE).
+
+This levels down LLM headings so our setext H1 separators remain
+the top-level document structure."
+  (let ((result delta)
+        (ends-with-newline (and (> (length delta) 0)
+                                (eq (aref delta (1- (length delta))) ?\n))))
+    ;; Transform # at start if we're at line beginning
+    (when (and at-line-start (string-match "\\`\\(#+\\)" result))
+      (setq result (concat "#" result)))
+    ;; Transform # after any newlines within the delta
+    (setq result (replace-regexp-in-string "\n\\(#+\\)" "\n#\\1" result))
+    (cons result ends-with-newline)))
+
 (defun pi-coding-agent--display-message-delta (delta)
-  "Display streaming message DELTA at the streaming marker."
+  "Display streaming message DELTA at the streaming marker.
+Transforms ATX headings by adding one # level to keep our setext
+H1 separators as the top-level document structure."
   (when (and delta pi-coding-agent--streaming-marker)
-    (let ((inhibit-read-only t))
+    (let* ((inhibit-read-only t)
+           (transform-result (pi-coding-agent--transform-atx-headings
+                              delta pi-coding-agent--last-was-newline))
+           (transformed (car transform-result))
+           (ends-newline (cdr transform-result)))
       (pi-coding-agent--with-scroll-preservation
         (save-excursion
           (goto-char (marker-position pi-coding-agent--streaming-marker))
-          (insert delta)
-          (set-marker pi-coding-agent--streaming-marker (point)))))))
+          (insert transformed)
+          (set-marker pi-coding-agent--streaming-marker (point))))
+      ;; Update state for next delta
+      (setq pi-coding-agent--last-was-newline ends-newline))))
 
 (defun pi-coding-agent--display-thinking-start ()
   "Insert opening marker for thinking block."
