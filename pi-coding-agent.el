@@ -988,6 +988,8 @@ Updates buffer-local state and renders display updates."
                              (plist-get result :content)
                              (plist-get result :details)
                              (plist-get event :isError))))
+    ("tool_execution_update"
+     (pi-coding-agent--display-tool-update (plist-get event :partialResult)))
     ("auto_compaction_start"
      (setq pi-coding-agent--status 'compacting)
      (pi-coding-agent--spinner-start)
@@ -1222,6 +1224,45 @@ it from extending to subsequent content.  Sets pending overlay to nil."
         (setq pi-coding-agent--pending-tool-overlay (pi-coding-agent--tool-overlay-create tool-name))
         (insert header-display "\n")))))
 
+(defun pi-coding-agent--display-tool-update (partial-result)
+  "Display PARTIAL-RESULT as streaming output in pending tool overlay.
+Shows rolling tail of output, truncated to visual lines.
+Previous streaming content is replaced."
+  (when (and pi-coding-agent--pending-tool-overlay
+             partial-result
+             (not (string-empty-p partial-result)))
+    (let* ((width (or (window-width) 80))
+           (max-lines pi-coding-agent-bash-preview-lines)
+           (lines (split-string partial-result "\n"))
+           (total-lines (length lines))
+           ;; Take last N lines for rolling tail
+           (tail-lines (if (> total-lines max-lines)
+                           (last lines max-lines)
+                         lines))
+           (hidden-count (- total-lines (length tail-lines)))
+           (tail-content (string-join tail-lines "\n"))
+           ;; Apply visual line truncation to the tail
+           (truncation (pi-coding-agent--truncate-to-visual-lines
+                        tail-content max-lines width))
+           (display-content (plist-get truncation :content))
+           (inhibit-read-only t))
+      (pi-coding-agent--with-scroll-preservation
+        (save-excursion
+          (let* ((ov-start (overlay-start pi-coding-agent--pending-tool-overlay))
+                 (ov-end (overlay-end pi-coding-agent--pending-tool-overlay)))
+            ;; Delete previous streaming content (everything after header line)
+            (goto-char ov-start)
+            (forward-line 1)
+            (when (< (point) ov-end)
+              (delete-region (point) ov-end))
+            ;; Insert new streaming content
+            (goto-char (overlay-end pi-coding-agent--pending-tool-overlay))
+            (when (> hidden-count 0)
+              (insert (propertize (format "... (%d earlier lines)\n" hidden-count)
+                                  'face 'pi-coding-agent-collapsed-indicator)))
+            (insert (propertize display-content 'face 'pi-coding-agent-tool-output))
+            (insert "\n")))))))
+
 (defun pi-coding-agent--wrap-in-src-block (content lang)
   "Wrap CONTENT in a markdown fenced code block with LANG.
 Returns markdown string for syntax highlighting."
@@ -1273,6 +1314,14 @@ Shows preview lines with expandable toggle for long output."
          (needs-collapse (> hidden-count 0))
          (inhibit-read-only t))
     (pi-coding-agent--with-scroll-preservation
+      ;; Clear any streaming content from tool_execution_update
+      (when pi-coding-agent--pending-tool-overlay
+        (let ((ov-start (overlay-start pi-coding-agent--pending-tool-overlay))
+              (ov-end (overlay-end pi-coding-agent--pending-tool-overlay)))
+          (goto-char ov-start)
+          (forward-line 1)  ; skip header line
+          (when (< (point) ov-end)
+            (delete-region (point) ov-end))))
       (goto-char (point-max))
       (if needs-collapse
           ;; Long output: show preview + toggle button

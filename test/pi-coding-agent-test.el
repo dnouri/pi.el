@@ -1262,6 +1262,74 @@ then proper highlighting once block is closed."
       (pi-coding-agent--handle-display-event event)
       (should (string-match-p "output" (buffer-string))))))
 
+(ert-deftest pi-coding-agent-test-display-handler-handles-tool-update ()
+  "Display handler processes tool_execution_update events."
+  (with-temp-buffer
+    (pi-coding-agent-chat-mode)
+    ;; First, start the tool
+    (pi-coding-agent--handle-display-event
+     '(:type "tool_execution_start"
+       :toolName "bash"
+       :toolCallId "test-id"
+       :args (:command "long-running")))
+    ;; Then send an update with partial result
+    (pi-coding-agent--handle-display-event
+     '(:type "tool_execution_update"
+       :toolCallId "test-id"
+       :partialResult "streaming output line 1"))
+    ;; Should show partial content
+    (should (string-match-p "streaming output" (buffer-string)))))
+
+(ert-deftest pi-coding-agent-test-tool-update-shows-rolling-tail ()
+  "Tool updates show rolling tail of output, truncated to visual lines."
+  (with-temp-buffer
+    (pi-coding-agent-chat-mode)
+    ;; Start the tool
+    (pi-coding-agent--handle-display-event
+     '(:type "tool_execution_start"
+       :toolName "bash"
+       :toolCallId "test-id"
+       :args (:command "verbose-command")))
+    ;; Send update with many lines (more than preview limit)
+    (let ((many-lines (mapconcat (lambda (n) (format "line%d" n))
+                                 (number-sequence 1 20)
+                                 "\n")))
+      (cl-letf (((symbol-function 'window-width) (lambda (&rest _) 80)))
+        (pi-coding-agent--handle-display-event
+         `(:type "tool_execution_update"
+           :toolCallId "test-id"
+           :partialResult ,many-lines))))
+    ;; Should show indicator that earlier lines are hidden
+    (should (string-match-p "earlier lines" (buffer-string)))
+    ;; Should show last few lines
+    (should (string-match-p "line20" (buffer-string)))))
+
+(ert-deftest pi-coding-agent-test-tool-update-replaced-by-end ()
+  "Tool update content is replaced by final result on tool_execution_end."
+  (with-temp-buffer
+    (pi-coding-agent-chat-mode)
+    (pi-coding-agent--handle-display-event
+     '(:type "tool_execution_start"
+       :toolName "bash"
+       :toolCallId "test-id"
+       :args (:command "test")))
+    (pi-coding-agent--handle-display-event
+     '(:type "tool_execution_update"
+       :toolCallId "test-id"
+       :partialResult "partial streaming"))
+    ;; Partial content should be present
+    (should (string-match-p "partial streaming" (buffer-string)))
+    ;; Now end the tool
+    (pi-coding-agent--handle-display-event
+     '(:type "tool_execution_end"
+       :toolName "bash"
+       :toolCallId "test-id"
+       :result (:content ((:type "text" :text "final output")))
+       :isError nil))
+    ;; Streaming content should be replaced
+    (should-not (string-match-p "partial streaming" (buffer-string)))
+    (should (string-match-p "final output" (buffer-string)))))
+
 (ert-deftest pi-coding-agent-test-display-handler-handles-thinking-delta ()
   "Display handler processes thinking_delta events."
   (with-temp-buffer
