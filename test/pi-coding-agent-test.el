@@ -2455,7 +2455,7 @@ display-agent-end must finalize the pending overlay with error face."
 
 ;;; Reconnect Tests
 
-(ert-deftest pi-coding-agent-test-reconnect-when-process-dead ()
+(ert-deftest pi-coding-agent-test-recover-restarts-process ()
   "Reconnect starts new process when old process is dead."
   (let* ((started-new-process nil)
          (switch-session-called nil)
@@ -2484,7 +2484,7 @@ display-agent-end must finalize the pending overlay with error face."
                            (setq switch-session-called t
                                  session-path-used (plist-get msg :sessionPath))))))
               ;; Call reconnect
-              (pi-coding-agent-reconnect)
+              (pi-coding-agent-recover)
               ;; Verify
               (should started-new-process)
               (should switch-session-called)
@@ -2495,32 +2495,39 @@ display-agent-end must finalize the pending overlay with error face."
             (delete-process pi-coding-agent--process)))
         (kill-buffer chat-buf)))))
 
-(ert-deftest pi-coding-agent-test-reconnect-no-op-when-process-alive ()
-  "Reconnect does nothing when process is alive."
+(ert-deftest pi-coding-agent-test-recover-works-when-process-alive ()
+  "Recover restarts even when process is alive (handles hung process)."
   (let* ((started-new-process nil)
-         (chat-buf (get-buffer-create "*pi-coding-agent-test-reconnect-alive-chat*")))
+         (old-process-killed nil)
+         (chat-buf (get-buffer-create "*pi-coding-agent-test-recover-alive-chat*")))
     (unwind-protect
         (progn
           (with-current-buffer chat-buf
             (pi-coding-agent-chat-mode)
+            ;; Set up state with session file
+            (setq pi-coding-agent--state '(:session-file "/tmp/test-session.json"))
             ;; Set up alive process
             (let ((alive-proc (start-process "test-alive" nil "cat")))
               (setq pi-coding-agent--process alive-proc)
               (cl-letf (((symbol-function 'pi-coding-agent--start-process)
                          (lambda (_dir)
                            (setq started-new-process t)
-                           nil)))
-                ;; Call reconnect
-                (pi-coding-agent-reconnect)
-                ;; Verify - should NOT start new process
-                (should-not started-new-process)))))
+                           (start-process "test-new" nil "cat")))
+                        ((symbol-function 'pi-coding-agent--rpc-async)
+                         (lambda (_proc _msg _cb) nil)))
+                ;; Call recover
+                (pi-coding-agent-recover)
+                ;; Verify - SHOULD start new process even when old was alive
+                (should started-new-process)
+                ;; Old process should be killed
+                (should-not (process-live-p alive-proc))))))
       (when (buffer-live-p chat-buf)
         (with-current-buffer chat-buf
           (when (and pi-coding-agent--process (process-live-p pi-coding-agent--process))
             (delete-process pi-coding-agent--process)))
         (kill-buffer chat-buf)))))
 
-(ert-deftest pi-coding-agent-test-reconnect-fails-without-session-file ()
+(ert-deftest pi-coding-agent-test-recover-fails-without-session-file ()
   "Reconnect shows error when no session file in state."
   (let* ((error-shown nil)
          (chat-buf (get-buffer-create "*pi-coding-agent-test-reconnect-no-session*")))
@@ -2539,7 +2546,7 @@ display-agent-end must finalize the pending overlay with error face."
                        (lambda (fmt &rest _args)
                          (when (string-match-p "No session" fmt)
                            (setq error-shown t)))))
-              (pi-coding-agent-reconnect)
+              (pi-coding-agent-recover)
               (should error-shown))))
       (when (buffer-live-p chat-buf)
         (kill-buffer chat-buf)))))

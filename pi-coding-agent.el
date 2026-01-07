@@ -1059,9 +1059,9 @@ Shows an error message if process is unavailable."
         (expanded (pi-coding-agent--expand-slash-command text)))
     (cond
      ((null proc)
-      (message "Pi: No process available - try M-x pi to restart"))
+      (message "Pi: No process available - try M-x pi-coding-agent-recover or C-c C-p R"))
      ((not (process-live-p proc))
-      (message "Pi: Process died - try M-x pi to restart"))
+      (message "Pi: Process died - try M-x pi-coding-agent-recover or C-c C-p R"))
      (t
       (pi-coding-agent--rpc-async proc
                      (list :type "prompt" :message expanded)
@@ -2130,10 +2130,11 @@ Note: When called from async callbacks, pass CHAT-BUF explicitly."
                            (funcall callback count))))))))
 
 ;;;###autoload
-(defun pi-coding-agent-reconnect ()
-  "Reconnect to the current session after process death.
+(defun pi-coding-agent-recover ()
+  "Recover the current session by restarting the process.
 Useful when the pi process has died or become unresponsive.
-Preserves the current session by using the cached session file."
+Kills any existing process and starts fresh, then resumes the session
+using the cached session file."
   (interactive)
   (let* ((chat-buf (pi-coding-agent--get-chat-buffer))
          (session-file (and chat-buf
@@ -2143,22 +2144,20 @@ Preserves the current session by using the cached session file."
     (cond
      ;; No chat buffer
      ((not chat-buf)
-      (message "Pi: No session to reconnect"))
-     ;; Process is still alive - no need to reconnect
-     ((and (buffer-local-value 'pi-coding-agent--process chat-buf)
-           (process-live-p (buffer-local-value 'pi-coding-agent--process chat-buf)))
-      (message "Pi: Process is still alive, no reconnect needed"))
+      (message "Pi: No session to recover"))
      ;; No session file cached
      ((not session-file)
-      (message "Pi: No session file available - cannot reconnect"))
-     ;; Reconnect
+      (message "Pi: No session file available - cannot recover"))
+     ;; Recover
      (t
       (with-current-buffer chat-buf
-        ;; Kill old process if it exists
+        ;; Kill old process if it exists (alive or dead)
         (when pi-coding-agent--process
           (pi-coding-agent--unregister-display-handler pi-coding-agent--process)
           (when (process-live-p pi-coding-agent--process)
             (delete-process pi-coding-agent--process)))
+        ;; Reset status to idle (in case we were stuck in streaming)
+        (setq pi-coding-agent--status 'idle)
         ;; Start new process
         (let* ((dir (pi-coding-agent--session-directory))
                (new-proc (pi-coding-agent--start-process dir)))
@@ -2180,11 +2179,9 @@ Preserves the current session by using the cached session file."
                                                         (setq pi-coding-agent--status (plist-get new-state :status)
                                                               pi-coding-agent--state new-state))
                                                       (force-mode-line-update t))))
-                                   (message "Pi: Reconnected to session"))
-                               (message "Pi: Failed to reconnect - %s"
+                                   (message "Pi: Session recovered"))
+                               (message "Pi: Failed to recover - %s"
                                         (or (plist-get response :error) "unknown error"))))))))))))
-
-;;;###autoload
 (defun pi-coding-agent-resume-session ()
   "Resume a previous pi session from the current project."
   (interactive)
@@ -2502,7 +2499,7 @@ with argument substitution.  Otherwise return TEXT unchanged."
   [["Session"
     ("n" "new" pi-coding-agent-new-session)
     ("r" "resume" pi-coding-agent-resume-session)
-    ("R" "reconnect" pi-coding-agent-reconnect)
+    ("R" "recover" pi-coding-agent-recover)
     ("e" "export" pi-coding-agent-export-html)
     ("q" "quit" pi-coding-agent-quit)]
    ["Context"
