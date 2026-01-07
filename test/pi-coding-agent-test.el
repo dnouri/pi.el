@@ -2452,3 +2452,94 @@ display-agent-end must finalize the pending overlay with error face."
     (pi-coding-agent--display-message-delta "Use ```code``` inline\n# Heading")
     ;; Inline backticks shouldn't affect heading transform
     (should (string-match-p "^## Heading" (buffer-string)))))
+
+;;; Reconnect Tests
+
+(ert-deftest pi-coding-agent-test-reconnect-when-process-dead ()
+  "Reconnect starts new process when old process is dead."
+  (let* ((started-new-process nil)
+         (switch-session-called nil)
+         (session-path-used nil)
+         (chat-buf (get-buffer-create "*pi-coding-agent-test-reconnect-chat*")))
+    (unwind-protect
+        (progn
+          (with-current-buffer chat-buf
+            (pi-coding-agent-chat-mode)
+            ;; Set up state with session file (simulating previous get_state)
+            (setq pi-coding-agent--state '(:session-file "/tmp/test-session.json"
+                                           :model (:name "test-model")))
+            ;; Set up dead process
+            (let ((dead-proc (start-process "test-dead" nil "true")))
+              (while (process-live-p dead-proc)
+                (sleep-for 0.01))
+              (setq pi-coding-agent--process dead-proc))
+            ;; Mock functions
+            (cl-letf (((symbol-function 'pi-coding-agent--start-process)
+                       (lambda (_dir)
+                         (setq started-new-process t)
+                         (start-process "test-new" nil "cat")))
+                      ((symbol-function 'pi-coding-agent--rpc-async)
+                       (lambda (_proc msg _cb)
+                         (when (equal (plist-get msg :type) "switch_session")
+                           (setq switch-session-called t
+                                 session-path-used (plist-get msg :sessionPath))))))
+              ;; Call reconnect
+              (pi-coding-agent-reconnect)
+              ;; Verify
+              (should started-new-process)
+              (should switch-session-called)
+              (should (equal session-path-used "/tmp/test-session.json")))))
+      (when (buffer-live-p chat-buf)
+        (with-current-buffer chat-buf
+          (when (and pi-coding-agent--process (process-live-p pi-coding-agent--process))
+            (delete-process pi-coding-agent--process)))
+        (kill-buffer chat-buf)))))
+
+(ert-deftest pi-coding-agent-test-reconnect-no-op-when-process-alive ()
+  "Reconnect does nothing when process is alive."
+  (let* ((started-new-process nil)
+         (chat-buf (get-buffer-create "*pi-coding-agent-test-reconnect-alive-chat*")))
+    (unwind-protect
+        (progn
+          (with-current-buffer chat-buf
+            (pi-coding-agent-chat-mode)
+            ;; Set up alive process
+            (let ((alive-proc (start-process "test-alive" nil "cat")))
+              (setq pi-coding-agent--process alive-proc)
+              (cl-letf (((symbol-function 'pi-coding-agent--start-process)
+                         (lambda (_dir)
+                           (setq started-new-process t)
+                           nil)))
+                ;; Call reconnect
+                (pi-coding-agent-reconnect)
+                ;; Verify - should NOT start new process
+                (should-not started-new-process)))))
+      (when (buffer-live-p chat-buf)
+        (with-current-buffer chat-buf
+          (when (and pi-coding-agent--process (process-live-p pi-coding-agent--process))
+            (delete-process pi-coding-agent--process)))
+        (kill-buffer chat-buf)))))
+
+(ert-deftest pi-coding-agent-test-reconnect-fails-without-session-file ()
+  "Reconnect shows error when no session file in state."
+  (let* ((error-shown nil)
+         (chat-buf (get-buffer-create "*pi-coding-agent-test-reconnect-no-session*")))
+    (unwind-protect
+        (progn
+          (with-current-buffer chat-buf
+            (pi-coding-agent-chat-mode)
+            ;; State without session file
+            (setq pi-coding-agent--state '(:model (:name "test-model")))
+            ;; Dead process
+            (let ((dead-proc (start-process "test-dead" nil "true")))
+              (while (process-live-p dead-proc)
+                (sleep-for 0.01))
+              (setq pi-coding-agent--process dead-proc))
+            (cl-letf (((symbol-function 'message)
+                       (lambda (fmt &rest _args)
+                         (when (string-match-p "No session" fmt)
+                           (setq error-shown t)))))
+              (pi-coding-agent-reconnect)
+              (should error-shown))))
+      (when (buffer-live-p chat-buf)
+        (kill-buffer chat-buf)))))

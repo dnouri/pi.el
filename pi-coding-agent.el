@@ -2130,6 +2130,61 @@ Note: When called from async callbacks, pass CHAT-BUF explicitly."
                            (funcall callback count))))))))
 
 ;;;###autoload
+(defun pi-coding-agent-reconnect ()
+  "Reconnect to the current session after process death.
+Useful when the pi process has died or become unresponsive.
+Preserves the current session by using the cached session file."
+  (interactive)
+  (let* ((chat-buf (pi-coding-agent--get-chat-buffer))
+         (session-file (and chat-buf
+                            (buffer-local-value 'pi-coding-agent--state chat-buf)
+                            (plist-get (buffer-local-value 'pi-coding-agent--state chat-buf)
+                                       :session-file))))
+    (cond
+     ;; No chat buffer
+     ((not chat-buf)
+      (message "Pi: No session to reconnect"))
+     ;; Process is still alive - no need to reconnect
+     ((and (buffer-local-value 'pi-coding-agent--process chat-buf)
+           (process-live-p (buffer-local-value 'pi-coding-agent--process chat-buf)))
+      (message "Pi: Process is still alive, no reconnect needed"))
+     ;; No session file cached
+     ((not session-file)
+      (message "Pi: No session file available - cannot reconnect"))
+     ;; Reconnect
+     (t
+      (with-current-buffer chat-buf
+        ;; Kill old process if it exists
+        (when pi-coding-agent--process
+          (pi-coding-agent--unregister-display-handler pi-coding-agent--process)
+          (when (process-live-p pi-coding-agent--process)
+            (delete-process pi-coding-agent--process)))
+        ;; Start new process
+        (let* ((dir (pi-coding-agent--session-directory))
+               (new-proc (pi-coding-agent--start-process dir)))
+          (setq pi-coding-agent--process new-proc)
+          (when (processp new-proc)
+            (process-put new-proc 'pi-coding-agent-chat-buffer chat-buf)
+            (pi-coding-agent--register-display-handler new-proc)
+            ;; Switch to the saved session
+            (pi-coding-agent--rpc-async new-proc
+                           (list :type "switch_session" :sessionPath session-file)
+                           (lambda (response)
+                             (if (plist-get response :success)
+                                 (progn
+                                   ;; Reload state
+                                   (pi-coding-agent--rpc-async new-proc '(:type "get_state")
+                                                  (lambda (state-response)
+                                                    (when (plist-get state-response :success)
+                                                      (let ((new-state (pi-coding-agent--extract-state-from-response state-response)))
+                                                        (setq pi-coding-agent--status (plist-get new-state :status)
+                                                              pi-coding-agent--state new-state))
+                                                      (force-mode-line-update t))))
+                                   (message "Pi: Reconnected to session"))
+                               (message "Pi: Failed to reconnect - %s"
+                                        (or (plist-get response :error) "unknown error"))))))))))))
+
+;;;###autoload
 (defun pi-coding-agent-resume-session ()
   "Resume a previous pi session from the current project."
   (interactive)
@@ -2447,6 +2502,7 @@ with argument substitution.  Otherwise return TEXT unchanged."
   [["Session"
     ("n" "new" pi-coding-agent-new-session)
     ("r" "resume" pi-coding-agent-resume-session)
+    ("R" "reconnect" pi-coding-agent-reconnect)
     ("e" "export" pi-coding-agent-export-html)
     ("q" "quit" pi-coding-agent-quit)]
    ["Context"
