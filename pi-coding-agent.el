@@ -1349,37 +1349,15 @@ Shows preview lines with expandable toggle for long output."
             (delete-region (point) ov-end))))
       (goto-char (point-max))
       (if needs-collapse
-          ;; Long output: show preview + toggle button
-          (let* ((preview-content (plist-get truncation :content))
-                 (full-content display-content)
-                 ;; Render preview with syntax highlighting
-                 (rendered-preview (pi-coding-agent--render-tool-content
-                                    preview-content lang))
-                 (content-start (point)))
-            (insert rendered-preview "\n")
-            ;; Apply diff overlays if this is an edit diff
-            (when is-edit-diff
-              (pi-coding-agent--apply-diff-overlays content-start (point)))
-            ;; Insert toggle button
-            (insert-text-button
-             (propertize (format "... (%d more lines)" hidden-count)
-                         'face 'pi-coding-agent-collapsed-indicator)
-             'action #'pi-coding-agent--toggle-tool-output
-             'follow-link t
-             'pi-coding-agent-full-content full-content
-             'pi-coding-agent-preview-content preview-content
-             'pi-coding-agent-lang lang
-             'pi-coding-agent-is-edit-diff is-edit-diff
-             'pi-coding-agent-expanded nil
-             'hidden-count hidden-count)
-            (insert "\n"))
-        ;; Short output: show all with syntax highlighting
-        ;; Strip trailing newlines from content to avoid double-spacing
+          ;; Long output: show preview with toggle button
+          (let ((preview-content (plist-get truncation :content)))
+            (pi-coding-agent--insert-tool-content-with-toggle
+             preview-content display-content lang is-edit-diff hidden-count nil))
+        ;; Short output: show all without toggle
         (let* ((rendered (pi-coding-agent--render-tool-content
                           (string-trim-right display-content "\n+") lang))
                (content-start (point)))
           (insert rendered "\n")
-          ;; Apply diff overlays if this is an edit diff
           (when is-edit-diff
             (pi-coding-agent--apply-diff-overlays content-start (point)))))
       ;; Error indicator
@@ -1415,62 +1393,43 @@ Shows preview lines with expandable toggle for long output."
           ;; Delete from content start to after button
           (delete-region content-start (1+ btn-end))
           (goto-char content-start)
-          (if expanded
-              (pi-coding-agent--insert-collapsed-content
-               preview-content full-content lang is-edit-diff hidden-count)
-            (pi-coding-agent--insert-expanded-content
-             preview-content full-content lang is-edit-diff hidden-count))
+          ;; Toggle: if currently expanded, show collapsed (and vice versa)
+          (pi-coding-agent--insert-tool-content-with-toggle
+           preview-content full-content lang is-edit-diff hidden-count (not expanded))
           ;; Ensure fontification of inserted content (JIT font-lock is lazy)
           (font-lock-ensure content-start (point))
           ;; Update overlay to include new content (overlay no longer has rear-advance)
           (move-overlay ov (car bounds) (point)))))))
 
-(defun pi-coding-agent--insert-collapsed-content
-    (preview-content full-content lang is-edit-diff hidden-count)
-  "Insert PREVIEW-CONTENT with toggle button.
-FULL-CONTENT is stored for expansion.  LANG is for syntax highlighting.
-IS-EDIT-DIFF when non-nil applies diff overlays.
-HIDDEN-COUNT shows lines remaining."
-  (let ((rendered (pi-coding-agent--render-tool-content preview-content lang))
-        (content-start (point)))
+(defun pi-coding-agent--insert-tool-content-with-toggle
+    (preview-content full-content lang is-edit-diff hidden-count expanded)
+  "Insert tool content with a toggle button.
+When EXPANDED is nil, shows PREVIEW-CONTENT with expand button.
+When EXPANDED is non-nil, shows FULL-CONTENT with collapse button.
+LANG is for syntax highlighting.  IS-EDIT-DIFF applies diff overlays.
+HIDDEN-COUNT is stored for the button label."
+  (let* ((display-content (if expanded
+                              (string-trim-right full-content "\n+")
+                            preview-content))
+         (rendered (pi-coding-agent--render-tool-content display-content lang))
+         (content-start (point))
+         (button-label (if expanded
+                           "[-]"
+                         (format "... (%d more lines)" hidden-count))))
     (insert rendered "\n")
     (when is-edit-diff
-      (pi-coding-agent--apply-diff-overlays content-start (point))))
-  (insert-text-button
-   (propertize (format "... (%d more lines)" hidden-count) 'face 'pi-coding-agent-collapsed-indicator)
-   'action #'pi-coding-agent--toggle-tool-output
-   'follow-link t
-   'pi-coding-agent-full-content full-content
-   'pi-coding-agent-preview-content preview-content
-   'pi-coding-agent-lang lang
-   'pi-coding-agent-is-edit-diff is-edit-diff
-   'pi-coding-agent-expanded nil
-   'hidden-count hidden-count)
-  (insert "\n"))
-
-(defun pi-coding-agent--insert-expanded-content
-    (preview-content full-content lang is-edit-diff hidden-count)
-  "Insert FULL-CONTENT with collapse button.
-PREVIEW-CONTENT, LANG, IS-EDIT-DIFF and HIDDEN-COUNT are stored
-for collapsing."
-  ;; Strip trailing newlines from content to avoid double-spacing
-  (let ((rendered (pi-coding-agent--render-tool-content
-                   (string-trim-right full-content "\n+") lang))
-        (content-start (point)))
-    (insert rendered "\n")
-    (when is-edit-diff
-      (pi-coding-agent--apply-diff-overlays content-start (point))))
-  (insert-text-button
-   (propertize "[-]" 'face 'pi-coding-agent-collapsed-indicator)
-   'action #'pi-coding-agent--toggle-tool-output
-   'follow-link t
-   'pi-coding-agent-full-content full-content
-   'pi-coding-agent-preview-content preview-content
-   'pi-coding-agent-lang lang
-   'pi-coding-agent-is-edit-diff is-edit-diff
-   'pi-coding-agent-expanded t
-   'hidden-count hidden-count)
-  (insert "\n"))
+      (pi-coding-agent--apply-diff-overlays content-start (point)))
+    (insert-text-button
+     (propertize button-label 'face 'pi-coding-agent-collapsed-indicator)
+     'action #'pi-coding-agent--toggle-tool-output
+     'follow-link t
+     'pi-coding-agent-full-content full-content
+     'pi-coding-agent-preview-content preview-content
+     'pi-coding-agent-lang lang
+     'pi-coding-agent-is-edit-diff is-edit-diff
+     'pi-coding-agent-expanded expanded
+     'hidden-count hidden-count)
+    (insert "\n")))
 
 (defun pi-coding-agent--find-tool-block-bounds ()
   "Find the bounds of the tool block at point.
