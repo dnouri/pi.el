@@ -1237,6 +1237,14 @@ then proper highlighting once block is closed."
     (should (memq 'diff-indicator-added
                   (ensure-list (get-text-property 0 'face result))))))
 
+(ert-deftest pi-coding-agent-test-fontify-diff-content-marked-fontified ()
+  "Fontified diff content should be marked to prevent font-lock override."
+  (let* ((diff-content "+  1 def foo():")
+         (result (pi-coding-agent--fontify-diff-content diff-content "test.py")))
+    ;; Should have font-lock-fontified property to prevent re-fontification
+    (should (get-text-property 0 'font-lock-fontified result))
+    (should (get-text-property 0 'fontified result))))
+
 (ert-deftest pi-coding-agent-test-edit-tool-diff-has-syntax-highlighting ()
   "Edit tool output should have both diff and syntax highlighting."
   (with-temp-buffer

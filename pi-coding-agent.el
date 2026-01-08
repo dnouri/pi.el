@@ -1575,14 +1575,20 @@ Returns the propertized line string."
 
 (defun pi-coding-agent--fontify-diff-content (diff-content file-path)
   "Fontify DIFF-CONTENT with syntax highlighting for FILE-PATH.
-Returns a propertized string with diff faces and language syntax."
+Returns a propertized string with diff faces and language syntax.
+Marks the result as fontified to prevent font-lock from overwriting."
   (let* ((lang (pi-coding-agent--path-to-language file-path))
          (mode (pi-coding-agent--lang-to-mode lang))
          (lines (split-string diff-content "\n"))
          (fontified-lines (mapcar (lambda (line)
                                     (pi-coding-agent--fontify-diff-line line mode))
-                                  lines)))
-    (mapconcat #'identity fontified-lines "\n")))
+                                  lines))
+         (result (mapconcat #'identity fontified-lines "\n")))
+    ;; Mark as already fontified to prevent font-lock from overwriting our faces
+    (add-text-properties 0 (length result)
+                         '(font-lock-fontified t fontified t font-lock-multiline t)
+                         result)
+    result))
 
 ;;;; Compaction Display
 
