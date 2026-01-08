@@ -1118,17 +1118,6 @@ then proper highlighting once block is closed."
 
 ;;; Diff Overlay Highlighting
 
-(ert-deftest pi-coding-agent-test-lang-to-mode-returns-callable ()
-  "Language strings should resolve to callable major modes."
-  (dolist (lang '("python" "emacs-lisp" "javascript"))
-    (let ((mode (pi-coding-agent--lang-to-mode lang)))
-      (should mode)
-      (should (fboundp mode)))))
-
-(ert-deftest pi-coding-agent-test-lang-to-mode-unknown-returns-nil ()
-  "Unknown language should return nil."
-  (should-not (pi-coding-agent--lang-to-mode "unknown-language-xyz")))
-
 (ert-deftest pi-coding-agent-test-apply-diff-overlays-added-line ()
   "Diff overlays should mark added lines with diff-added faces."
   (with-temp-buffer

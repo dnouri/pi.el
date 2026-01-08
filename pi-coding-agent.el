@@ -258,14 +258,6 @@ Returns nil if the extension is not recognized."
     (let ((ext (downcase (or (file-name-extension path) ""))))
       (cdr (assoc ext pi-coding-agent--extension-language-alist)))))
 
-(defun pi-coding-agent--lang-to-mode (lang)
-  "Return major mode function for language string LANG.
-Uses `markdown-get-lang-mode' for resolution.  Returns nil if no mode found."
-  (when lang
-    (let ((mode (markdown-get-lang-mode lang)))
-      (when (fboundp mode)
-        mode))))
-
 ;;;; Major Modes
 
 (defvar pi-coding-agent-chat-mode-map
