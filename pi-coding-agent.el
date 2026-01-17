@@ -2804,6 +2804,10 @@ Called from `post-self-insert-hook'."
 (defconst pi-coding-agent--project-files-cache-ttl 30
   "Seconds before project files cache expires.")
 
+(defconst pi-coding-agent--file-exclude-patterns
+  '(".git" "node_modules" ".elpa" "target" "build" "__pycache__" ".venv" "dist")
+  "Directory names to exclude when listing files with find.")
+
 (defun pi-coding-agent--get-project-files ()
   "Get list of project files, respecting .gitignore.
 Uses cache if available and not expired."
@@ -2833,12 +2837,15 @@ Respects .gitignore when in a git repository."
       (error (pi-coding-agent--list-files-with-find dir)))))
 
 (defun pi-coding-agent--list-files-with-find (dir)
-  "List files in DIR using find, excluding common non-project directories."
-  (let ((default-directory dir))
-    (split-string
-     (shell-command-to-string
-      "find . -type f \\( -name '.git' -o -name 'node_modules' -o -name '.elpa' -o -name 'target' -o -name 'build' \\) -prune -o -type f -print 2>/dev/null | sed 's|^\\./||'")
-     "\n" t)))
+  "List files in DIR using find.
+Excludes directories listed in `pi-coding-agent--file-exclude-patterns'."
+  (let* ((default-directory dir)
+         (prune-expr (mapconcat (lambda (p) (format "-name '%s'" p))
+                                pi-coding-agent--file-exclude-patterns
+                                " -o "))
+         (cmd (format "find . \\( %s \\) -prune -o -type f -print 2>/dev/null | sed 's|^\\./||'"
+                      prune-expr)))
+    (split-string (shell-command-to-string cmd) "\n" t)))
 
 (defun pi-coding-agent--file-reference-capf ()
   "Completion-at-point function for @file references.
