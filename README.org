@@ -105,7 +105,7 @@ For multiple sessions in the same directory, use =C-u M-x pi= to create a named 
 | =M-p= / =M-n= | input   | History navigation                |
 | =C-r=         | input   | Search history                    |
 | =TAB=         | input   | Complete paths, @files, /commands |
-| =@=           | input   | File reference (fuzzy search)     |
+| =@=           | input   | File reference (search)           |
 | =n= / =p=     | chat    | Navigate messages                 |
 | =TAB=         | chat    | Toggle section                    |
 | =S-TAB=       | chat    | Cycle all folds                   |
@@ -130,7 +130,7 @@ see available commands, including your custom ones from =~/.pi/commands/=.
 
 Several features match the TUI experience:
 
-- *File reference (@)*: Type =@= to fuzzy-search project files. Respects =.gitignore=.
+- *File reference (@)*: Type =@= to search project files. Respects =.gitignore=.
   Results are cached for 30 seconds to keep completion fast.
 
 - *Path completion (Tab)*: Complete relative paths like =./=, =../=, =~/=.

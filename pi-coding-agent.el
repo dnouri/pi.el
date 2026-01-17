@@ -48,7 +48,7 @@
 ;;     M-p / M-n      History navigation
 ;;     C-r            Search history
 ;;     TAB            Path/file completion
-;;     @              File reference (fuzzy search project files)
+;;     @              File reference (search project files)
 ;;
 ;;   Chat buffer:
 ;;     n / p          Navigate messages
@@ -56,7 +56,7 @@
 ;;     C-c C-p        Open menu
 ;;
 ;; Editor Features:
-;;   - File reference (@): Type @ to fuzzy-search project files (respects .gitignore)
+;;   - File reference (@): Type @ to search project files (respects .gitignore)
 ;;   - Path completion (Tab): Complete relative paths, ../, ~/, etc.
 ;;
 ;; Press C-c C-p for the full transient menu with model selection,
@@ -2842,7 +2842,7 @@ Respects .gitignore when in a git repository."
 
 (defun pi-coding-agent--file-reference-capf ()
   "Completion-at-point function for @file references.
-Triggers when @ is typed, provides fuzzy completion of project files."
+Triggers when @ is typed, provides completion of project files."
   (when-let* ((at-pos (save-excursion
                         (when (search-backward "@" (line-beginning-position) t)
                           (point)))))
@@ -2850,7 +2850,7 @@ Triggers when @ is typed, provides fuzzy completion of project files."
            (end (point))
            (prefix (buffer-substring-no-properties start end))
            (files (pi-coding-agent--get-project-files))
-           ;; Filter files matching prefix (case-insensitive fuzzy)
+           ;; Filter files containing prefix as substring
            (candidates (if (string-empty-p prefix)
                            files
                          (cl-remove-if-not
