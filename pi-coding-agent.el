@@ -42,16 +42,27 @@
 ;; Key Bindings:
 ;;   Input buffer:
 ;;     C-c C-c        Send prompt
+;;     C-c C-s        Queue steering message (interrupts after current tool)
+;;     C-c C-q        Queue follow-up message (sent after agent completes)
 ;;     C-c C-k        Abort streaming
 ;;     C-c C-p        Open menu
 ;;     C-c C-r        Resume session
 ;;     M-p / M-n      History navigation
 ;;     C-r            Search history
+;;     TAB            Path/file completion
+;;     @              File reference (fuzzy search project files)
 ;;
 ;;   Chat buffer:
 ;;     n / p          Navigate messages
 ;;     TAB            Toggle tool output
 ;;     C-c C-p        Open menu
+;;
+;; Editor Features:
+;;   - File reference (@): Type @ to fuzzy-search project files (respects .gitignore)
+;;   - Path completion (Tab): Complete relative paths, ../, ~/, etc.
+;;   - Message queuing: Submit messages while agent is working:
+;;       C-c C-s  queues steering message (delivered after current tool)
+;;       C-c C-q  queues follow-up message (delivered after agent completes)
 ;;
 ;; Press C-c C-p for the full transient menu with model selection,
 ;; thinking level, session management, and custom commands.
@@ -341,6 +352,9 @@ This is a read-only buffer showing the conversation history."
     (define-key map (kbd "<C-up>") #'pi-coding-agent-previous-input)
     (define-key map (kbd "<C-down>") #'pi-coding-agent-next-input)
     (define-key map (kbd "C-r") #'pi-coding-agent-history-search)
+    ;; Message queuing
+    (define-key map (kbd "C-c C-s") #'pi-coding-agent-queue-steering)
+    (define-key map (kbd "C-c C-q") #'pi-coding-agent-queue-followup)
     map)
   "Keymap for `pi-coding-agent-input-mode'.")
 
@@ -432,7 +446,12 @@ Restores saved input when moving past newest entry."
   "Major mode for composing pi prompts."
   :group 'pi-coding-agent
   (setq-local header-line-format '(:eval (pi-coding-agent--header-line-string)))
+  ;; Completion-at-point functions (order matters: first match wins)
   (add-hook 'completion-at-point-functions #'pi-coding-agent--slash-capf nil t)
+  (add-hook 'completion-at-point-functions #'pi-coding-agent--file-reference-capf nil t)
+  (add-hook 'completion-at-point-functions #'pi-coding-agent--path-capf nil t)
+  ;; Auto-trigger completion after @ is typed
+  (add-hook 'post-self-insert-hook #'pi-coding-agent--maybe-complete-at nil t)
   (add-hook 'kill-buffer-hook #'pi-coding-agent--cleanup-input-on-kill nil t))
 
 ;;;; Session Directory Detection
@@ -1715,10 +1734,10 @@ Displays warnings for missing dependencies."
                                         'pi-coding-agent-assistant-label)))
     (concat
      separator "\n"
-     "C-c C-c   send prompt\n"
-     "C-c C-k   abort\n"
-     "C-c C-r   resume session\n"
-     "C-c C-p   menu\n")))
+     "C-c C-c   send         C-c C-s   queue steering\n"
+     "C-c C-k   abort        C-c C-q   queue follow-up\n"
+     "C-c C-r   resume       C-c C-p   menu\n"
+     "@/TAB     file completion\n")))
 
 (defun pi-coding-agent--display-startup-header ()
   "Display the startup header in the chat buffer."
@@ -2768,6 +2787,223 @@ with argument substitution.  Otherwise return TEXT unchanged."
            (cmd (cdr (assoc choice choices))))
       (when cmd
         (pi-coding-agent--run-custom-command cmd)))))
+
+;;;; Editor Features: File Reference (@)
+
+(defun pi-coding-agent--maybe-complete-at ()
+  "Trigger completion after @.
+Called from `post-self-insert-hook'."
+  (when (eq last-command-event ?@)
+    (run-at-time 0 nil #'pi-coding-agent--complete-file-reference)))
+
+(defun pi-coding-agent--complete-file-reference ()
+  "Complete file reference after @."
+  (let* ((files (pi-coding-agent--get-project-files))
+         (choice (completing-read "File: " files nil nil)))
+    (when (and choice (not (string-empty-p choice)))
+      (insert choice))))
+
+(defvar-local pi-coding-agent--project-files-cache nil
+  "Cached list of project files for @ completion.")
+
+(defvar-local pi-coding-agent--project-files-cache-time nil
+  "Time when project files cache was last updated.")
+
+(defconst pi-coding-agent--project-files-cache-ttl 30
+  "Seconds before project files cache expires.")
+
+(defun pi-coding-agent--get-project-files ()
+  "Get list of project files, respecting .gitignore.
+Uses cache if available and not expired."
+  (let ((now (float-time)))
+    (when (or (null pi-coding-agent--project-files-cache)
+              (null pi-coding-agent--project-files-cache-time)
+              (> (- now pi-coding-agent--project-files-cache-time)
+                 pi-coding-agent--project-files-cache-ttl))
+      (setq pi-coding-agent--project-files-cache
+            (pi-coding-agent--list-project-files))
+      (setq pi-coding-agent--project-files-cache-time now))
+    pi-coding-agent--project-files-cache))
+
+(defun pi-coding-agent--list-project-files ()
+  "List project files using git ls-files or find.
+Respects .gitignore when in a git repository."
+  (let* ((dir (pi-coding-agent--session-directory))
+         (default-directory dir))
+    (condition-case nil
+        ;; Try git ls-files first (respects .gitignore)
+        (let ((output (shell-command-to-string
+                       "git ls-files --cached --others --exclude-standard 2>/dev/null")))
+          (if (string-empty-p output)
+              ;; Fallback to find if git fails or no files
+              (pi-coding-agent--list-files-with-find dir)
+            (split-string output "\n" t)))
+      (error (pi-coding-agent--list-files-with-find dir)))))
+
+(defun pi-coding-agent--list-files-with-find (dir)
+  "List files in DIR using find, excluding common non-project directories."
+  (let ((default-directory dir))
+    (split-string
+     (shell-command-to-string
+      "find . -type f \\( -name '.git' -o -name 'node_modules' -o -name '.elpa' -o -name 'target' -o -name 'build' \\) -prune -o -type f -print 2>/dev/null | sed 's|^\\./||'")
+     "\n" t)))
+
+(defun pi-coding-agent--file-reference-capf ()
+  "Completion-at-point function for @file references.
+Triggers when @ is typed, provides fuzzy completion of project files."
+  (when-let* ((at-pos (save-excursion
+                        (when (search-backward "@" (line-beginning-position) t)
+                          (point)))))
+    (let* ((start (1+ at-pos))
+           (end (point))
+           (prefix (buffer-substring-no-properties start end))
+           (files (pi-coding-agent--get-project-files))
+           ;; Filter files matching prefix (case-insensitive fuzzy)
+           (candidates (if (string-empty-p prefix)
+                           files
+                         (cl-remove-if-not
+                          (lambda (f) (string-match-p (regexp-quote prefix) f))
+                          files))))
+      (when candidates
+        (list start end candidates
+              :exclusive 'no
+              :annotation-function (lambda (_) " (file)")
+              :company-kind (lambda (_) 'file))))))
+
+;;;; Editor Features: Path Completion
+
+(defun pi-coding-agent--path-capf ()
+  "Completion-at-point function for file paths.
+Completes paths starting with ./, ../, ~/, or /."
+  (let ((bounds (bounds-of-thing-at-point 'filename)))
+    (when bounds
+      (let* ((start (car bounds))
+             (end (cdr bounds))
+             (path (buffer-substring-no-properties start end)))
+        ;; Only trigger for path-like strings
+        (when (or (string-prefix-p "./" path)
+                  (string-prefix-p "../" path)
+                  (string-prefix-p "~/" path)
+                  (string-prefix-p "/" path))
+          (let* ((dir (file-name-directory path))
+                 (base (file-name-nondirectory path))
+                 (expanded-dir (expand-file-name (or dir "") (pi-coding-agent--session-directory)))
+                 (candidates
+                  (when (file-directory-p expanded-dir)
+                    (mapcar (lambda (f)
+                              (concat (or dir "") f))
+                            (cl-remove-if
+                             (lambda (f) (member f '("." "..")))
+                             (file-name-all-completions base expanded-dir))))))
+            (when candidates
+              (list start end candidates
+                    :exclusive 'no
+                    :annotation-function
+                    (lambda (c)
+                      (if (file-directory-p (expand-file-name c (pi-coding-agent--session-directory)))
+                          " (dir)" " (file)"))))))))))
+
+;;;; Editor Features: Message Queuing
+;;
+;; Message queuing uses the pi RPC API's dedicated commands:
+;;   - `steer`: Interrupt after current tool, remaining tools cancelled
+;;   - `follow_up`: Wait until agent finishes all work
+;;
+;; Pi handles the queueing internally.  The Emacs side just sends the
+;; appropriate RPC command and displays the queued message visually.
+
+(defface pi-coding-agent-queued-label
+  '((t :inherit font-lock-comment-face :slant italic))
+  "Face for queued message labels in chat."
+  :group 'pi-coding-agent)
+
+(defun pi-coding-agent--display-queued-message (text type)
+  "Display queued message TEXT of TYPE in chat buffer.
+TYPE is :steer or :follow-up.  Shows as a dimmed/italic indicator."
+  (let ((type-str (if (eq type :steer) "steering" "follow-up")))
+    (pi-coding-agent--append-to-chat
+     (concat "\n"
+             (propertize (format "┄┄┄ Queued (%s) ┄┄┄" type-str)
+                         'face 'pi-coding-agent-queued-label)
+             "\n"
+             (propertize text 'face 'pi-coding-agent-queued-label)
+             "\n"))))
+
+(defun pi-coding-agent--send-steer (text)
+  "Send TEXT as a steering message via RPC.
+Steering interrupts after current tool execution."
+  (let ((proc (pi-coding-agent--get-process)))
+    (when (and proc (process-live-p proc))
+      (pi-coding-agent--rpc-async proc
+                                  (list :type "steer" :message text)
+                                  #'ignore))))
+
+(defun pi-coding-agent--send-follow-up (text)
+  "Send TEXT as a follow-up message via RPC.
+Follow-up waits until agent finishes all work."
+  (let ((proc (pi-coding-agent--get-process)))
+    (when (and proc (process-live-p proc))
+      (pi-coding-agent--rpc-async proc
+                                  (list :type "follow_up" :message text)
+                                  #'ignore))))
+
+(defun pi-coding-agent-queue-steering ()
+  "Queue current input as a steering message.
+Steering messages are delivered after the current tool execution,
+interrupting any remaining tools.  If agent is idle, sends as normal prompt."
+  (interactive)
+  (let ((text (string-trim (buffer-string))))
+    (when (not (string-empty-p text))
+      (let ((chat-buf (pi-coding-agent--get-chat-buffer)))
+        (when chat-buf
+          ;; Add to history and reset navigation state
+          (pi-coding-agent--history-add text)
+          (setq pi-coding-agent--input-ring-index nil
+                pi-coding-agent--input-saved nil)
+          (with-current-buffer chat-buf
+            (if (eq pi-coding-agent--status 'idle)
+                ;; Idle: send as normal prompt
+                (progn
+                  (pi-coding-agent--display-user-message text (current-time))
+                  (setq pi-coding-agent--status 'sending)
+                  (setq pi-coding-agent--assistant-header-shown nil)
+                  (pi-coding-agent--spinner-start)
+                  (force-mode-line-update)
+                  (pi-coding-agent--send-prompt text))
+              ;; Busy: send via RPC steer command
+              (pi-coding-agent--display-queued-message text :steer)
+              (pi-coding-agent--send-steer text)
+              (message "Pi: Steering message queued")))
+          (erase-buffer))))))
+
+(defun pi-coding-agent-queue-followup ()
+  "Queue current input as a follow-up message.
+Follow-up messages are delivered only after the agent finishes all work.
+If agent is idle, sends as normal prompt."
+  (interactive)
+  (let ((text (string-trim (buffer-string))))
+    (when (not (string-empty-p text))
+      (let ((chat-buf (pi-coding-agent--get-chat-buffer)))
+        (when chat-buf
+          ;; Add to history and reset navigation state
+          (pi-coding-agent--history-add text)
+          (setq pi-coding-agent--input-ring-index nil
+                pi-coding-agent--input-saved nil)
+          (with-current-buffer chat-buf
+            (if (eq pi-coding-agent--status 'idle)
+                ;; Idle: send as normal prompt
+                (progn
+                  (pi-coding-agent--display-user-message text (current-time))
+                  (setq pi-coding-agent--status 'sending)
+                  (setq pi-coding-agent--assistant-header-shown nil)
+                  (pi-coding-agent--spinner-start)
+                  (force-mode-line-update)
+                  (pi-coding-agent--send-prompt text))
+              ;; Busy: send via RPC follow_up command
+              (pi-coding-agent--display-queued-message text :follow-up)
+              (pi-coding-agent--send-follow-up text)
+              (message "Pi: Follow-up message queued")))
+          (erase-buffer))))))
 
 (transient-define-prefix pi-coding-agent-menu ()
   "Pi coding agent menu."
