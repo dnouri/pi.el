@@ -359,10 +359,13 @@ got mixed together like:
               (pi-coding-agent-send))
             
             ;; Wait for streaming to start and some content to appear
-            (with-timeout (5 (ert-fail "Timeout waiting for streaming to start"))
-              (while (with-current-buffer chat-buf
-                       (< (buffer-size) 100))
-                (accept-process-output proc 0.1)))
+            (should (pi-coding-agent-test-wait-until
+                     (lambda ()
+                       (with-current-buffer chat-buf
+                         (> (buffer-size) 100)))
+                     pi-coding-agent-test-rpc-timeout
+                     pi-coding-agent-test-poll-interval
+                     proc))
             
             ;; Now send steering while streaming is in progress
             (with-current-buffer input-buf
@@ -370,10 +373,11 @@ got mixed together like:
               (pi-coding-agent-queue-steering))
             
             ;; Wait for completion
-            (with-timeout (pi-coding-agent-test-integration-timeout
-                           (ert-fail "Timeout waiting for agent_end"))
-              (while (not got-agent-end)
-                (accept-process-output proc 0.1)))
+            (should (pi-coding-agent-test-wait-until
+                     (lambda () got-agent-end)
+                     pi-coding-agent-test-integration-timeout
+                     pi-coding-agent-test-poll-interval
+                     proc))
             
             ;; Capture final content
             (setq final-content (with-current-buffer chat-buf
