@@ -124,6 +124,14 @@ Prevents huge single-line outputs from blowing up the chat buffer."
   :type 'natnum
   :group 'pi-coding-agent)
 
+(defcustom pi-coding-agent-visit-file-other-window t
+  "Whether to open files in other window when visiting from tool blocks.
+When non-nil, RET on a line in tool output opens in other window.
+When nil, RET opens in the same window.
+Prefix arg toggles the behavior."
+  :type 'boolean
+  :group 'pi-coding-agent)
+
 ;;;; Faces
 
 (defface pi-coding-agent-separator
@@ -1690,17 +1698,22 @@ For read/write: count lines in code block + offset."
      ;; Fallback to line 1
      1)))
 
-(defun pi-coding-agent-visit-file (&optional other-window)
+(defun pi-coding-agent-visit-file (&optional toggle)
   "Visit the file associated with the tool block at point.
 If on a diff line, go to the corresponding line number.
 For read/write, go to the line within the displayed content.
-With prefix arg OTHER-WINDOW, display in another window."
+By default, uses `pi-coding-agent-visit-file-other-window' to decide
+whether to open in another window.  With prefix arg TOGGLE, invert
+that behavior."
   (interactive "P")
   (if-let* ((ov (seq-find (lambda (o) (overlay-get o 'pi-coding-agent-tool-block))
                           (overlays-at (point))))
             (path (overlay-get ov 'pi-coding-agent-tool-path)))
-      (let ((line (pi-coding-agent--tool-line-at-point ov)))
-        (funcall (if other-window #'find-file-other-window #'find-file) path)
+      (let* ((line (pi-coding-agent--tool-line-at-point ov))
+             (use-other-window (if toggle
+                                   (not pi-coding-agent-visit-file-other-window)
+                                 pi-coding-agent-visit-file-other-window)))
+        (funcall (if use-other-window #'find-file-other-window #'find-file) path)
         (goto-char (point-min))
         (forward-line (1- line)))
     (user-error "No file at point")))

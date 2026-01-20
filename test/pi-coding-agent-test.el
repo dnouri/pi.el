@@ -1446,9 +1446,10 @@ then proper highlighting once block is closed."
     ;; Move to the diff line
     (goto-char (point-min))
     (search-forward "+ 42")
-    ;; Mock find-file to capture what would be opened
+    ;; Mock find-file-other-window to capture what would be opened
+    ;; (default behavior with pi-coding-agent-visit-file-other-window = t)
     (let (opened-file opened-line)
-      (cl-letf (((symbol-function 'find-file)
+      (cl-letf (((symbol-function 'find-file-other-window)
                  (lambda (path)
                    (setq opened-file path)
                    ;; Create a fake buffer with enough lines
@@ -1486,7 +1487,7 @@ then proper highlighting once block is closed."
     (search-forward "```")
     (forward-line 2)  ;; On "line 101"
     (let (opened-line)
-      (cl-letf (((symbol-function 'find-file)
+      (cl-letf (((symbol-function 'find-file-other-window)
                  (lambda (_path)
                    (with-current-buffer (get-buffer-create "*test-target*")
                      (erase-buffer)
