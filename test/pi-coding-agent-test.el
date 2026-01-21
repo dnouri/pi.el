@@ -1446,23 +1446,22 @@ then proper highlighting once block is closed."
     ;; Move to the diff line
     (goto-char (point-min))
     (search-forward "+ 42")
-    ;; Mock find-file-other-window to capture what would be opened
-    ;; (default behavior with pi-coding-agent-visit-file-other-window = t)
-    (let (opened-file opened-line)
+    ;; Mock find-file-other-window to create a buffer with enough lines
+    ;; Note: goto-char and forward-line are bytecode ops, can't be mocked
+    (let (opened-file)
       (cl-letf (((symbol-function 'find-file-other-window)
                  (lambda (path)
                    (setq opened-file path)
-                   ;; Create a fake buffer with enough lines
-                   (with-current-buffer (get-buffer-create "*test-target*")
-                     (erase-buffer)
-                     (dotimes (_ 100) (insert "line\n"))
-                     (current-buffer))))
-                ((symbol-function 'goto-char) (lambda (pos) nil))
-                ((symbol-function 'forward-line)
-                 (lambda (n) (setq opened-line (1+ n)))))
+                   ;; Create a fake buffer with enough lines and switch to it
+                   (set-buffer (get-buffer-create "*test-target*"))
+                   (erase-buffer)
+                   (dotimes (_ 100) (insert "line\n"))
+                   (goto-char (point-min))
+                   (current-buffer))))
         (pi-coding-agent-visit-file))
       (should (equal "/tmp/test.el" opened-file))
-      (should (= 42 opened-line))
+      ;; Check we're on line 42 (line-number-at-pos is 1-indexed)
+      (should (= 42 (line-number-at-pos)))
       (ignore-errors (kill-buffer "*test-target*")))))
 
 (ert-deftest pi-coding-agent-test-visit-file-no-path-errors ()
@@ -1486,20 +1485,19 @@ then proper highlighting once block is closed."
     (goto-char (point-min))
     (search-forward "```")
     (forward-line 2)  ;; On "line 101"
-    (let (opened-line)
-      (cl-letf (((symbol-function 'find-file-other-window)
-                 (lambda (_path)
-                   (with-current-buffer (get-buffer-create "*test-target*")
-                     (erase-buffer)
-                     (dotimes (_ 200) (insert "line\n"))
-                     (current-buffer))))
-                ((symbol-function 'goto-char) (lambda (_pos) nil))
-                ((symbol-function 'forward-line)
-                 (lambda (n) (setq opened-line (1+ n)))))
-        (pi-coding-agent-visit-file))
-      ;; Line 2 in code block + offset 100 - 1 = 101
-      (should (= 101 opened-line))
-      (ignore-errors (kill-buffer "*test-target*")))))
+    ;; Note: goto-char and forward-line are bytecode ops, can't be mocked
+    (cl-letf (((symbol-function 'find-file-other-window)
+               (lambda (_path)
+                 ;; Create a fake buffer with enough lines and switch to it
+                 (set-buffer (get-buffer-create "*test-target*"))
+                 (erase-buffer)
+                 (dotimes (_ 200) (insert "line\n"))
+                 (goto-char (point-min))
+                 (current-buffer))))
+      (pi-coding-agent-visit-file))
+    ;; Line 2 in code block + offset 100 - 1 = 101
+    (should (= 101 (line-number-at-pos)))
+    (ignore-errors (kill-buffer "*test-target*"))))
 
 ;;; Visual Line Truncation Tests
 
