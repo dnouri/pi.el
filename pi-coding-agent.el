@@ -3199,7 +3199,7 @@ Triggers when @ is typed, provides completion of project files."
          (expanded-dir (expand-file-name (or dir "") (pi-coding-agent--session-directory))))
     (when (file-directory-p expanded-dir)
       (mapcar (lambda (f) (concat (or dir "") f))
-              (cl-remove-if (lambda (f) (member f '("." "..")))
+              (cl-remove-if (lambda (f) (member f '("." ".." "./" "../")))
                             (file-name-all-completions base expanded-dir))))))
 
 (defun pi-coding-agent--path-capf ()
